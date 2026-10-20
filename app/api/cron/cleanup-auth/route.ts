@@ -1,0 +1,3 @@
+import { NextResponse } from 'next/server'
+import { db } from '@/lib/auth/db'
+export async function GET(request: Request) { if (request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); await db('auth_codes', { method: 'DELETE' }, `?or=(expires_at.lt.${encodeURIComponent(new Date().toISOString())},consumed_at.not.is.null)`); await db('sessions', { method: 'DELETE' }, `?or=(expires_at.lt.${encodeURIComponent(new Date().toISOString())},revoked_at.not.is.null)`); await db('rate_limits', { method: 'DELETE' }, `?window_start.lt.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}`); return NextResponse.json({ ok: true }) }

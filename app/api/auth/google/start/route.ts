@@ -1,0 +1,5 @@
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { SignJWT } from 'jose'
+import { randomBytes } from 'node:crypto'
+export async function GET(request: Request) { const url=new URL(request.url); const next=url.searchParams.get('next'); const safe=next?.startsWith('/')&&!next.startsWith('//')?next:'/app'; const state=randomBytes(24).toString('base64url'); const nonce=randomBytes(24).toString('base64url'); const secret=new TextEncoder().encode(process.env.AUTH_SECRET!); const signed=await new SignJWT({state,nonce,next:safe}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('10m').sign(secret); (await cookies()).set('pastq_google_state',signed,{httpOnly:true,secure:true,sameSite:'lax',path:'/',maxAge:600}); const params=new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID!,redirect_uri:`${url.origin}/api/auth/google/callback`,response_type:'code',scope:'openid email profile',state,nonce,code_challenge:state,code_challenge_method:'plain',access_type:'online'}); redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`) }
