@@ -1,16 +1,10 @@
 import { NextResponse } from 'next/server'
-import { generateCode, hashCode, normalizeEmail } from '@/lib/auth/crypto'
-import { getSupabaseAdmin } from '@/lib/auth/supabase'
+import { createHmac, randomInt } from 'node:crypto'
+import { z } from 'zod'
+import { assertSameOrigin } from '@/lib/auth/origin'
+import { db, rpc } from '@/lib/auth/db'
 import { sendEmail } from '@/lib/email/send'
 import { codeEmail } from '@/lib/email/templates/code'
-
-export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({})); const email = normalizeEmail(String(body.email || ''))
-  const generic = NextResponse.json({ ok: true })
-  if (!/^\S+@\S+\.\S+$/.test(email)) return generic
-  const code = generateCode(); const db = getSupabaseAdmin()
-  await db.from('auth_codes').update({ consumed_at: new Date().toISOString() }).eq('email', email).is('consumed_at', null)
-  await db.from('auth_codes').insert({ email, code_hash: hashCode(code), expires_at: new Date(Date.now() + 600000).toISOString(), ip: request.headers.get('x-forwarded-for')?.split(',')[0] || null })
-  try { const mail = codeEmail(code); await sendEmail({ to: email, subject: mail.subject, text: mail.text, html: mail.html }) } catch { /* keep enumeration-resistant response */ }
-  return generic
-}
+const schema = z.object({ email: z.string().trim().toLowerCase().email() })
+const digest = (code: string) => createHmac('sha256', process.env.AUTH_SECRET!).update(code).digest('hex')
+export async function POST(request: Request) { try { await assertSameOrigin(); const { email } = schema.parse(await request.json()); const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'; const allowed = await Promise.all([rpc<boolean>('check_rate_limit', { p_key: `email:${email}`, p_max: 5, p_window_seconds: 3600 }), rpc<boolean>('check_rate_limit', { p_key: `ip:${ip}`, p_max: 20, p_window_seconds: 3600 }), rpc<boolean>('check_rate_limit', { p_key: `cooldown:${email}`, p_max: 1, p_window_seconds: 30 })]); if (allowed.some((item) => item === false)) return NextResponse.json({ ok: true }); const code = String(randomInt(100000, 1000000)); await db('auth_codes', { method: 'POST', body: JSON.stringify({ email, code_hash: digest(code), expires_at: new Date(Date.now() + 600000).toISOString(), ip }) }); await sendEmail(email, codeEmail(code)); return NextResponse.json({ ok: true }) } catch { return NextResponse.json({ ok: true }) } }
