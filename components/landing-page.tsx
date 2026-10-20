@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ArrowRight, BookOpen, Check, ChevronDown, CheckCircle2, Clock3, Layers3, Minus, Timer } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { landingImages } from '@/lib/landing/images'
+import { InstallPrompt } from '@/components/install-prompt'
 
 const faqs = [
   ['Can I use PastQ offline?', 'PastQ is designed for a reliable connection. We may support limited offline access later, but questions are never stored on your device.'],
@@ -41,6 +42,6 @@ export function LandingPage() {
       <section className="landing-section faq-section"><div className="section-intro"><p className="landing-kicker">Good to know</p><h2>Questions, answered.</h2></div><div className="faq-list">{faqs.map(([question, answer], index) => <div className="faq-item" key={question}><button onClick={() => setOpenFaq(openFaq === index ? null : index)} aria-expanded={openFaq === index}><span>{question}</span>{openFaq === index ? <Minus size={19} /> : <ChevronDown size={19} />}</button>{openFaq === index && <p>{answer}</p>}</div>)}</div></section>
       <section className="closing-cta"><div><p className="landing-kicker">Your next attempt can be different.</p><h2>Make practice the part you can control.</h2><Link href="/app" className="landing-button">Start practising <ArrowRight size={17} /></Link></div><div className="closing-mark"><img src="/brand/pastq-mark.svg" alt="" /></div></section>
     </main>
-    <footer className="landing-footer" ref={footer}><strong>WISDOM TECHNOLOGIES</strong><div><Link href="/sign-in">Sign in</Link><Link href="/plans">Plans</Link><Link href="#how-it-works">How it works</Link></div><span>© 2026 Wisdom Technologies</span></footer>{showMobileCta && <Link href="/app" className="mobile-cta">Start practising <ArrowRight size={17} /></Link>}
+    <footer className="landing-footer" ref={footer}><strong>WISDOM TECHNOLOGIES</strong><div><Link href="/sign-in">Sign in</Link><Link href="/plans">Plans</Link><Link href="#how-it-works">How it works</Link></div><span>© 2026 Wisdom Technologies</span></footer>{showMobileCta && <Link href="/app" className="mobile-cta">Start practising <ArrowRight size={17} /></Link>}<InstallPrompt />
   </div>
 }
