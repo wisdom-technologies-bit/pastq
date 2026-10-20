@@ -1,0 +1,3 @@
+import { NextResponse } from 'next/server'
+import { getSupabaseAdmin } from '@/lib/auth/supabase'
+export async function POST(request: Request) { if(request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({error:'Unauthorized'},{status:401}); const db=getSupabaseAdmin(); const now=new Date().toISOString(); await Promise.all([db.from('auth_codes').delete().lt('expires_at',now),db.from('sessions').delete().or(`expires_at.lt.${now},revoked_at.not.is.null`),db.from('rate_limits').delete().lt('window_start',new Date(Date.now()-86400000).toISOString())]); return NextResponse.json({ok:true}) }

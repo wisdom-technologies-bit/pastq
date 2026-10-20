@@ -24,4 +24,4 @@ export async function getCurrentUser() {
   return { user, profile }
 }
 export async function isSignedIn() { return Boolean(await getCurrentUser()) }
-export async function requireUser() { const current = await getCurrentUser(); if (!current) redirect('/sign-in'); return current }
+export async function requireUser(next = '/app') { const current = await getCurrentUser(); if (!current) redirect(`/sign-in?next=${encodeURIComponent(next)}`); return current }

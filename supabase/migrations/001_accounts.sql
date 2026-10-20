@@ -1,3 +1,4 @@
+-- PastQ identity-only accounts schema. Question content never belongs here.
 create extension if not exists citext;
 
 create table if not exists public.users (
