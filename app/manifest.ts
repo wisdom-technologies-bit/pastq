@@ -1,0 +1,2 @@
+import type { MetadataRoute } from 'next'
+export default function manifest(): MetadataRoute.Manifest { return { name: 'PastQ', short_name: 'PastQ', description: 'Focused exam practice for Nigerian students.', start_url: '/', display: 'standalone', background_color: '#FBF9F5', theme_color: '#0C2444', icons: [{ src: '/brand/favicon.svg', sizes: '64x64', type: 'image/svg+xml', purpose: 'maskable' }] } }

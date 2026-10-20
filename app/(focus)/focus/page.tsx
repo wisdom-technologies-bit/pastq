@@ -1,0 +1,1 @@
+export default function FocusModePlaceholder() { return <main className="focus-placeholder"><span className="eyebrow">Focus mode</span><h1>A quiet space for your next attempt.</h1><p>Your practice player will live here.</p></main> }
