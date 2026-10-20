@@ -1,3 +1,5 @@
-import Link from 'next/link'
+import Image from 'next/image'
+import { Suspense } from 'react'
+import { SignInForm } from './sign-in-form'
 
-export default function SignInPage() { return <main className="auth-placeholder"><Link href="/" className="auth-brand"><img src="/brand/pastq-wordmark.svg" alt="PastQ" /></Link><section><p className="landing-kicker">PastQ account</p><h1>Keep your place.</h1><p>Sign-in is opening shortly. Your practice space is being prepared.</p><Link href="/" className="secondary-button">Back to PastQ</Link></section></main> }
+export default function SignInPage() { return <main className="auth-page"><section className="auth-card"><Image src="/brand/pastq-wordmark.svg" alt="PastQ" width={116} height={28} /><p className="landing-kicker">PastQ account</p><h1>Welcome to PastQ</h1><p>Keep your practice progress in one calm, focused place.</p><Suspense><SignInForm /></Suspense></section></main> }
