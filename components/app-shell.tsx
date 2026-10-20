@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { BookOpen, ChartNoAxesColumnIncreasing, CircleUserRound, House, Moon, Sun, Target } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-const navItems = [{ href: '/', label: 'Home', icon: House }, { href: '/practice', label: 'Practice', icon: BookOpen }, { href: '/cbt', label: 'CBT', icon: Target }, { href: '/progress', label: 'Progress', icon: ChartNoAxesColumnIncreasing }, { href: '/profile', label: 'Profile', icon: CircleUserRound }]
+const navItems = [{ href: '/app', label: 'Home', icon: House }, { href: '/practice', label: 'Practice', icon: BookOpen }, { href: '/cbt', label: 'CBT', icon: Target }, { href: '/progress', label: 'Progress', icon: ChartNoAxesColumnIncreasing }, { href: '/profile', label: 'Profile', icon: CircleUserRound }]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
