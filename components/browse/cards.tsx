@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BookOpen, Building2, CalendarDays, ChevronRight, GraduationCap, Landmark, LockKeyhole, School } from 'lucide-react'
+import { Building2, CalendarDays, ChevronRight, GraduationCap, Landmark, LockKeyhole, School } from 'lucide-react'
 import type { Exam, ExamProfile, ExamSubject, ExamYear, CbtPlan } from '@/lib/bank/schemas'
 import { UnlockTrigger, OpeningSoonButton, practiceSetupHref, cbtSetupHref } from './browse-client'
 
