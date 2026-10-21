@@ -1,0 +1,34 @@
+button.subject-row{width:100%;text-align:left;color:inherit;font:inherit;appearance:none}
+.ps-backdrop{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(8,20,40,.52);animation:ps-fade .18s ease-out}
+.ps-sheet{position:relative;width:100%;max-width:520px;max-height:92dvh;overflow:auto;padding:12px 22px calc(22px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;background:var(--raised);color:var(--text);box-shadow:0 -20px 60px rgba(0,0,0,.25);animation:ps-up .26s cubic-bezier(.2,.8,.2,1)}
+.ps-grabber{width:40px;height:4px;margin:0 auto 16px;border-radius:999px;background:var(--border)}
+.ps-close{position:absolute;top:14px;right:14px;display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--border);border-radius:50%;background:var(--surface);color:var(--muted)}
+.ps-kicker{margin:0 0 6px;color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase}
+.ps-title{margin:0;padding-right:44px;font:600 26px/1.15 var(--heading)}
+.ps-sub{margin:6px 0 0;color:var(--muted);font-size:15px;line-height:1.5}
+.ps-label{margin:24px 0 10px;font-size:14px;font-weight:700}
+.ps-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ps-chip{min-height:44px;padding:0 18px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text);font-variant-numeric:tabular-nums;transition:transform .15s}
+.ps-chip:active{transform:scale(.97)}
+.ps-chip.selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent);font-weight:700}
+.ps-note{margin:12px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+.ps-toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:22px;padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.ps-toggle>span{display:grid;gap:3px}
+.ps-toggle small{color:var(--muted);font-size:13px}
+.ps-error{margin:18px 0 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--danger) 35%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--danger) 8%,var(--surface));font-size:14px}
+.ps-error p{margin:0}
+.ps-error a{display:inline-block;margin-top:6px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.ps-actions{display:grid;gap:8px;margin-top:24px}
+.ps-actions .primary-button{width:100%}
+.ps-actions .primary-button:disabled{opacity:.6;cursor:not-allowed}
+.ps-cancel{min-height:44px;font-size:15px}
+.ps-mark{display:grid;place-items:center;width:48px;height:48px;margin:6px 0 16px;border-radius:14px;background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--text)}
+.ps-list{display:grid;gap:10px;margin:20px 0 0;padding:0;list-style:none}
+.ps-list li{display:flex;align-items:center;gap:10px}
+.ps-list li::before{content:'✓';color:var(--success);font-weight:800}
+.ps-spin{animation:ps-rotate .9s linear infinite}
+@keyframes ps-fade{from{opacity:0}}
+@keyframes ps-up{from{transform:translateY(40px);opacity:.6}}
+@keyframes ps-pop{from{transform:scale(.97);opacity:0}}
+@keyframes ps-rotate{to{transform:rotate(360deg)}}
+@media(min-width:768px){.ps-backdrop{align-items:center}.ps-sheet{padding:28px;border-radius:24px;animation-name:ps-pop}.ps-grabber{display:none}}
