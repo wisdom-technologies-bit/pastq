@@ -1,0 +1,2 @@
+import { PageHeader, ProfileLayout } from '@/components/profile-hub'
+export default function HelpPage() { const email = process.env.SUPPORT_EMAIL || process.env.BREVO_SENDER_EMAIL || 'support@pastq.app'; return <ProfileLayout><PageHeader title="Help and support" description="We are here to help you keep moving." /><div className="support-card"><p>Have a question or found something that needs fixing?</p><a className="primary-button" href={`mailto:${email}`}>Email support</a></div></ProfileLayout> }

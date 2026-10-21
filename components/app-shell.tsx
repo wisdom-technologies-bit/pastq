@@ -15,8 +15,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => undefined)
     setDismissed(window.localStorage.getItem('pastq-install-dismissed') === '1')
-    const saved = window.localStorage.getItem('pastq-theme')
-    setDark(saved === 'dark'); document.documentElement.classList.toggle('dark', saved === 'dark')
+    const saved = document.cookie.match(/pastq_theme=([^;]+)/)?.[1] || 'system'
+    const isDark = saved === 'dark' || (saved === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    setDark(isDark); document.documentElement.classList.toggle('dark', isDark)
     const handler = (event: Event) => { event.preventDefault(); setInstallEvent(event as BeforeInstallPromptEvent) }
     window.addEventListener('beforeinstallprompt', handler); return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
