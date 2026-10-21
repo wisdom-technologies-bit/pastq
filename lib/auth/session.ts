@@ -8,8 +8,8 @@ const DAYS = 30
 const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 const expiry = () => new Date(Date.now() + DAYS * 86400000).toISOString()
 
-export type PastQUser = { id: string; email: string; name: string | null; avatar_url: string | null; status: 'active' | 'disabled'; email_verified_at: string | null }
-export type PastQProfile = { user_id: string; display_name: string | null; target_exams: string[]; exam_year: number | null; onboarded_at: string | null }
+export type PastQUser = { id: string; email: string; name: string | null; avatar_url: string | null; status: 'active' | 'disabled'; email_verified_at: string | null; google_sub?: string | null }
+export type PastQProfile = { user_id: string; display_name: string | null; target_exams: string[]; exam_year: number | null; onboarded_at: string | null; settings?: { theme?: 'light' | 'dark' | 'system'; text_size?: 'small' | 'medium' | 'large'; instant_feedback?: boolean }; product_updates?: boolean }
 
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString('base64url')
@@ -24,10 +24,10 @@ export async function getCurrentUser(): Promise<{ user: PastQUser; profile: Past
   const sessions = await db<Array<{ user_id: string; last_seen_at: string; expires_at: string }>>('sessions', {}, `?select=user_id,last_seen_at,expires_at&token_hash=eq.${hash(token)}&revoked_at=is.null&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&limit=1`)
   const session = sessions[0]
   if (!session) return null
-  const users = await db<PastQUser[]>('users', {}, `?select=id,email,name,avatar_url,status,email_verified_at&id=eq.${session.user_id}&status=eq.active&limit=1`)
+  const users = await db<PastQUser[]>('users', {}, `?select=id,email,name,avatar_url,status,email_verified_at,google_sub&id=eq.${session.user_id}&status=eq.active&limit=1`)
   const user = users[0]; if (!user) return null
   if (Date.now() - new Date(session.last_seen_at).getTime() > 3600000) await db('sessions', { method: 'PATCH', body: JSON.stringify({ last_seen_at: new Date().toISOString() }) }, `?token_hash=eq.${hash(token)}`)
-  const profiles = await db<PastQProfile[]>('profiles', {}, `?select=user_id,display_name,target_exams,exam_year,onboarded_at&user_id=eq.${user.id}&limit=1`)
+  const profiles = await db<PastQProfile[]>('profiles', {}, `?select=user_id,display_name,target_exams,exam_year,onboarded_at,settings,product_updates&user_id=eq.${user.id}&limit=1`)
   return { user, profile: profiles[0] || { user_id: user.id, display_name: null, target_exams: [], exam_year: null, onboarded_at: null } }
 }
 
