@@ -1,4 +1,5 @@
-import { Target } from 'lucide-react'
-import { EmptyState } from '@/components/empty-state'
 import { BannerSlot } from '@/components/banners/BannerSlot'
-export default function CBTPage() { return <><BannerSlot slot="cbt_top" /><header className="page-header simple"><div><p className="eyebrow">CBT mode</p><h1>Practice under pressure.</h1><p className="lede">A focused exam room for when you want to see what you know.</p></div></header><EmptyState icon={Target} eyebrow="Exam room locked" title="Your first mock is on its way." description="Timed practice, clear feedback, and no distractions. We&apos;re setting the room now." /></> }
+import { ExamCard } from '@/components/browse/cards'
+import { getExams, getYears } from '@/lib/bank/catalog'
+import { getCurrentUser } from '@/lib/auth/session'
+export default async function CBTPage(){const current=await getCurrentUser();try{const exams=await getExams(current?.user);const years=await Promise.all(exams.map((exam)=>getYears(exam.slug,current?.user)));return <><BannerSlot slot="cbt_top"/><header className="browse-header"><div><p className="eyebrow">CBT mode</p><h1>Practice under pressure.</h1><p className="lede">Choose an exam and step into a focused, timed exam room.</p></div></header><div className="browse-grid">{exams.map((exam,index)=><ExamCard key={exam.slug} exam={exam} years={years[index]} mode="cbt"/>)}</div></>}catch{return <section className="empty-state" role="alert"><p className="eyebrow">CBT mode</p><h1>We couldn&apos;t load this right now.</h1><p>Give it another try and we&apos;ll fetch the exam room.</p><a className="primary-button" href="/cbt">Retry</a></section>}}
