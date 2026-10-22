@@ -28,7 +28,7 @@ export async function getCurrentUser(): Promise<{ user: PastQUser; profile: Past
   const user = users[0]; if (!user) return null
   if (Date.now() - new Date(session.last_seen_at).getTime() > 3600000) await db('sessions', { method: 'PATCH', body: JSON.stringify({ last_seen_at: new Date().toISOString() }) }, `?token_hash=eq.${hash(token)}`)
   const profiles = await db<PastQProfile[]>('profiles', {}, `?select=user_id,display_name,target_exams,exam_year,onboarded_at,settings,product_updates&user_id=eq.${user.id}&limit=1`)
-  return { user, profile: profiles[0] || { user_id: user.id, display_name: null, target_exams: [], exam_year: null, onboarded_at: null } }
+  return { user, profile: profiles[0] || { user_id: user.id, display_name: null, target_exams: [], exam_year: null, onboarded_at: null, settings: { instant_feedback: true } } }
 }
 
 export async function isSignedIn() { return Boolean(await getCurrentUser()) }
