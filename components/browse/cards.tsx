@@ -13,7 +13,7 @@ export function ExamCard({ exam, profile, years, mode = 'practice' }: { exam: Ex
 
 export function YearTile({ exam, year, signedIn, mode }: { exam: string; year: ExamYear; signedIn: boolean; mode: 'practice' | 'cbt' }) {
   const content = <><span className="year-tile-top"><strong>{year.year}</strong></span><span className="year-meta">{year.subject_count} subjects · {year.published_count} questions</span>{year.access === 'free' ? <span className="free-pill year-free">Free</span> : <span className="year-lock"><LockKeyhole size={14}/></span>}</>
-  if (year.access !== 'free') return <UnlockTrigger signedIn={signedIn} currentPath={`/${mode}/${exam}`}><button className="year-tile locked" type="button">{content}</button></UnlockTrigger>
+  if (year.access !== 'free') return <UnlockTrigger signedIn={signedIn} currentPath={`/${mode}/${exam}`}>{content}</UnlockTrigger>
   const href = mode === 'practice' ? `/practice/${exam}/${year.year}` : `/cbt/${exam}/${year.year}`
   return year.practice_ready === false ? <div className="year-tile">{content}<span className="status-pill">Limited</span></div> : <Link href={href} className="year-tile">{content}</Link>
 }

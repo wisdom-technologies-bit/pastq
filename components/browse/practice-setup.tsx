@@ -56,7 +56,7 @@ function Sheet({ labelId, onClose, children }: { labelId: string; onClose: () =>
   )
 }
 
-function UnlockSheet({ signedIn, returnPath, onClose }: { signedIn: boolean; returnPath: string; onClose: () => void }) {
+export function UnlockSheet({ signedIn, returnPath, onClose }: { signedIn: boolean; returnPath: string; onClose: () => void }) {
   return (
     <Sheet labelId="ps-unlock-title" onClose={onClose}>
       <div className="ps-mark">
