@@ -1,5 +1,6 @@
 @import url('./dashboard.css');
 @import url('../components/browse/browse.css');
+@import url('./player-p5c.css');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';

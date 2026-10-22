@@ -4,7 +4,7 @@ button.subject-row{width:100%;text-align:left;color:inherit;font:inherit;appeara
 .ps-grabber{width:40px;height:4px;margin:0 auto 16px;border-radius:999px;background:var(--border)}
 .ps-close{position:absolute;top:14px;right:14px;display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--border);border-radius:50%;background:var(--surface);color:var(--muted)}
 .ps-kicker{margin:0 0 6px;color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.11em;text-transform:uppercase}
-.ps-title{margin:0;padding-right:44px;font:600 26px/1.15 var(--heading)}
+.ps-title{margin:0;padding-right:44px;font-family:var(--heading);font-size:26px;line-height:1.15;font-weight:600}
 .ps-sub{margin:6px 0 0;color:var(--muted);font-size:15px;line-height:1.5}
 .ps-label{margin:24px 0 10px;font-size:14px;font-weight:700}
 .ps-chips{display:flex;flex-wrap:wrap;gap:8px}
