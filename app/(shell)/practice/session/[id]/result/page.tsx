@@ -5,58 +5,8 @@ import { bankFetch } from '@/lib/bank/client'
 import { getCbtPlan } from '@/lib/bank/catalog'
 import { getTier } from '@/lib/entitlements'
 import { db } from '@/lib/auth/db'
-import ResultsClient, { type ResultData, type SubjectResult } from '@/components/results/results-client'
-
-const num = (value: unknown, fallback = 0) => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-const optionalNum = (value: unknown) => {
-  if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-/** Coerces whatever the Bank or the stored summary holds into one strict shape.
- *  Only counts are kept: never question text. */
-function normalise(raw: unknown): ResultData | null {
-  if (!raw || typeof raw !== 'object') return null
-  const source = raw as Record<string, unknown>
-  const subjects: SubjectResult[] = Array.isArray(source.subjects)
-    ? (source.subjects as Record<string, unknown>[])
-        .filter((item) => item && typeof item === 'object')
-        .map((item) => {
-          const total = num(item.total)
-          const correct = num(item.correct)
-          const answered = num(item.answered, correct + num(item.wrong))
-          return {
-            slug: String(item.slug ?? item.name ?? ''),
-            name: String(item.name ?? item.slug ?? 'Subject'),
-            total,
-            answered,
-            correct,
-            wrong: num(item.wrong),
-            unanswered: num(item.unanswered, Math.max(0, total - answered)),
-            percent: num(item.percent, total > 0 ? (correct / total) * 100 : 0),
-            score_100: optionalNum(item.score_100),
-          }
-        })
-    : []
-  const total = num(source.total)
-  const answered = num(source.answered, subjects.reduce((sum, subject) => sum + subject.answered, 0))
-  const correct = num(source.correct, subjects.reduce((sum, subject) => sum + subject.correct, 0))
-  return {
-    total,
-    answered,
-    correct,
-    wrong: num(source.wrong, Math.max(0, answered - correct)),
-    unanswered: num(source.unanswered, Math.max(0, total - answered)),
-    percent: num(source.percent, total > 0 ? (correct / total) * 100 : 0),
-    time_used_seconds: num(source.time_used_seconds ?? source.time_used),
-    score_400: optionalNum(source.score_400),
-    subjects,
-  }
-}
+import ResultsClient from '@/components/results/results-client'
+import { normaliseResult as normalise, type ResultData } from '@/lib/results'
 
 export default async function ResultPage({ params }: { params: Promise<{ id: string }> }) {
   const { user } = await requireUser()

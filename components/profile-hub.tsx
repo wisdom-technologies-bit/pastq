@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronRight, CircleHelp, CreditCard, KeyRound, LogOut, Palette, Shield, SlidersHorizontal, Trash2, UserRound } from 'lucide-react'
+import { ArrowLeft, ChevronRight, CircleHelp, CreditCard, History, KeyRound, LogOut, Palette, Shield, SlidersHorizontal, Trash2, UserRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { PastQProfile, PastQUser } from '@/lib/auth/session'
 
@@ -15,7 +15,7 @@ export const profileSections = [
   { href: '/legal/terms', label: 'Terms of use', icon: KeyRound },
   { href: '/legal/privacy', label: 'Privacy policy', icon: KeyRound },
 ]
-const groups = [{ title: 'Account', items: profileSections.slice(0, 3) }, { title: 'Preferences', items: profileSections.slice(3, 4) }, { title: 'Help', items: profileSections.slice(4) }]
+const groups = [{ title: 'Account', items: [...profileSections.slice(0, 3), { href: '/progress/history', label: 'History', icon: History }] }, { title: 'Preferences', items: profileSections.slice(3, 4) }, { title: 'Help', items: profileSections.slice(4) }]
 
 function Avatar({ user, name }: { user: PastQUser; name?: string | null }) { const initials = (name || user.name || user.email).split(/\\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(); return user.avatar_url ? <img className="profile-avatar" src={user.avatar_url} alt="" /> : <span className="profile-avatar">{initials}</span> }
 export function PageHeader({ title, description, back = true }: { title: string; description?: string; back?: boolean }) { const router = useRouter(); return <header className={`profile-page-header${back ? ' with-back' : ' no-back'}`}>{back && <button className="icon-button" onClick={() => router.back()} aria-label="Go back"><ArrowLeft /></button>}<div><h1>{title}</h1>{description && <p>{description}</p>}</div></header> }
