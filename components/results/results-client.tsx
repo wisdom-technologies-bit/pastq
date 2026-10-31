@@ -4,31 +4,9 @@ import Link from 'next/link'
 import { ArrowLeft, Clock3, LoaderCircle } from 'lucide-react'
 import { useState, type CSSProperties } from 'react'
 import type { StudySession } from '@/lib/study-sessions'
+import type { ResultData, SubjectResult } from '@/lib/results'
 import { BannerSlot } from '@/components/banners/BannerSlot'
 import './results.css'
-
-export type SubjectResult = {
-  slug: string
-  name: string
-  total: number
-  answered: number
-  correct: number
-  wrong: number
-  unanswered: number
-  percent: number
-  score_100?: number | null
-}
-export type ResultData = {
-  total: number
-  answered: number
-  correct: number
-  wrong: number
-  unanswered: number
-  percent: number
-  time_used_seconds: number
-  score_400: number | null
-  subjects: SubjectResult[]
-}
 
 const pad = (value: number) => String(value).padStart(2, '0')
 const clock = (seconds: number) => {
