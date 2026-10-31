@@ -1,10 +1,6 @@
 import 'server-only'
 import { db } from '@/lib/auth/db'
-import { stamp } from '@/lib/dates'
-import { PLAN_LABELS } from '@/lib/entitlements'
-import { sendEmail } from '@/lib/email/send'
-import { env } from '@/lib/env'
-import { formatNaira } from './pricing'
+import { notifyPaymentFailed, sendReceiptEmail } from './notify'
 import { disableSubscription, PaystackError, verifyTransaction, type VerifiedTransaction } from './paystack'
 
 /** Everything that turns a Paystack charge into access. One function serves the
@@ -16,7 +12,7 @@ export type ApplyOutcome = 'success' | 'pending' | 'failed'
 export type ApplyResult = { outcome: ApplyOutcome; plan: PaymentPlan | null; reference: string; granted: boolean }
 
 type PaymentRow = { id: string; user_id: string; reference: string; plan: PaymentPlan; amount_kobo: number; currency: string; status: 'pending' | 'success' | 'failed' | 'abandoned'; channel: string | null; paystack_transaction_id: number | string | null; paid_at: string | null; created_at: string }
-type EntitlementRow = { user_id: string; plan: PaymentPlan; status: 'active' | 'past_due' | 'cancelled' | 'expired'; current_period_end: string | null; cancel_at_period_end: boolean; paystack_customer_code: string | null; paystack_subscription_code: string | null; paystack_email_token: string | null; started_at: string | null }
+type EntitlementRow = { user_id: string; plan: PaymentPlan; status: 'active' | 'past_due' | 'cancelled' | 'expired'; current_period_end: string | null; cancel_at_period_end: boolean; last_reminder_at?: string | null; last_reminder_kind?: string | null; paystack_customer_code: string | null; paystack_subscription_code: string | null; paystack_email_token: string | null; started_at: string | null }
 type UserRow = { id: string; email: string; name: string | null }
 
 const PAYMENT_COLUMNS = 'id,user_id,reference,plan,amount_kobo,currency,status,channel,paystack_transaction_id,paid_at,created_at'
@@ -24,7 +20,6 @@ const ENTITLEMENT_COLUMNS = 'user_id,plan,status,current_period_end,cancel_at_pe
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const nowIso = () => new Date().toISOString()
-const appUrl = () => (env.APP_URL || 'https://pastq.app').replace(/\/+$/, '')
 const asUuid = (value: unknown) => (typeof value === 'string' && UUID.test(value.trim()) ? value.trim() : null)
 const asString = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null)
 const asPlan = (value: unknown): PaymentPlan | null => (value === 'monthly_auto' || value === 'monthly_manual' || value === 'lifetime' ? value : null)
@@ -178,28 +173,9 @@ async function grantAccess(userId: string, context: GrantContext) {
     paystack_subscription_code: context.subscriptionCode ?? existing?.paystack_subscription_code ?? null,
     paystack_email_token: context.emailToken ?? existing?.paystack_email_token ?? null,
     started_at: existing?.started_at ?? nowIso(),
+    last_reminder_at: null,
+    last_reminder_kind: null,
   })
-}
-
-async function sendReceipt(userId: string, plan: PaymentPlan, amountKobo: number, paidAt: string | null, reference: string) {
-  try {
-    const user = await findUser(userId)
-    if (!user?.email) return
-    await sendEmail({
-      to: user.email,
-      template: 'payment_receipt',
-      data: {
-        firstName: (user.name || '').trim().split(' ')[0] || 'there',
-        planName: PLAN_LABELS[plan],
-        amountLabel: formatNaira(amountKobo),
-        paidOn: stamp(paidAt ?? nowIso()),
-        reference,
-        manageUrl: `${appUrl()}/profile/subscription`,
-      },
-    })
-  } catch {
-    // A receipt that fails to send must never undo a payment.
-  }
 }
 
 /**
@@ -254,7 +230,7 @@ export async function applySuccessfulCharge(reference: string, source: ApplySour
       const existing = await findEntitlement(userId)
       if (!existing) {
         await grantAccess(userId, { plan, customerCode: verified.customerCode })
-        await sendReceipt(userId, plan, payment.amount_kobo, payment.paid_at, clean)
+        await sendReceiptEmail(userId, { plan, amountKobo: payment.amount_kobo, paidAt: payment.paid_at, reference: clean })
         return { outcome: 'success', plan, reference: clean, granted: true }
       }
       return { outcome: 'success', plan, reference: clean, granted: false }
@@ -289,7 +265,7 @@ export async function applySuccessfulCharge(reference: string, source: ApplySour
 
   await notePaymentEvent(`charge.success:${clean}`, source === 'renewal' ? 'renewal.success' : 'charge.success', clean)
   await grantAccess(userId, { plan, customerCode: verified.customerCode })
-  await sendReceipt(userId, plan, recorded?.amount_kobo ?? verified.amountKobo, recorded?.paid_at ?? verified.paidAt, clean)
+  await sendReceiptEmail(userId, { plan, amountKobo: recorded?.amount_kobo ?? verified.amountKobo, paidAt: recorded?.paid_at ?? verified.paidAt, reference: clean })
   return { outcome: 'success', plan, reference: clean, granted: true }
 }
 
@@ -331,21 +307,6 @@ export async function linkSubscription(input: { subscriptionCode: string; emailT
     paystack_email_token: input.emailToken,
     started_at: existing.started_at ?? nowIso(),
   })
-}
-
-/** The "payment failed" note that goes with a past-due row. Best effort. */
-export async function notifyPaymentFailed(userId: string): Promise<void> {
-  try {
-    const user = await findUser(userId)
-    if (!user?.email) return
-    await sendEmail({
-      to: user.email,
-      template: 'payment_failed',
-      data: { firstName: (user.name || '').trim().split(' ')[0] || 'there', manageUrl: `${appUrl()}/profile/subscription` },
-    })
-  } catch {
-    // Nothing in billing depends on an email leaving.
-  }
 }
 
 /** invoice.payment_failed: the row goes past due; the grace period covers access. */
