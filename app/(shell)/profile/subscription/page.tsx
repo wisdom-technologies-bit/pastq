@@ -1,10 +1,13 @@
 import Link from 'next/link'
 import { PageHeader, ProfileLayout } from '@/components/profile-hub'
+import { ReceiptButton } from '@/components/billing/receipt-button'
+import { SubscriptionActions } from '@/components/billing/subscription-actions'
+import { UpdateCardButton } from '@/components/billing/update-card-button'
 import { db } from '@/lib/auth/db'
 import { requireUser } from '@/lib/auth/session'
 import { calendarDate } from '@/lib/dates'
-import { formatNaira } from '@/lib/billing/pricing'
-import { getEntitlementSummary, planLabel, shortPlanLabel, type EntitlementSummary } from '@/lib/entitlements'
+import { formatNaira, getPricing } from '@/lib/billing/pricing'
+import { getEntitlementSummary, planLabel, shortPlanLabel } from '@/lib/entitlements'
 import './subscription.css'
 
 type PaymentStatus = 'pending' | 'success' | 'failed' | 'abandoned'
@@ -12,6 +15,7 @@ type PaymentRow = { id: string; reference: string; plan: string; amount_kobo: nu
 
 const PAYMENT_COLUMNS = 'id,reference,plan,amount_kobo,currency,status,paid_at,created_at'
 const STATUS_COPY: Record<PaymentStatus, string> = { pending: 'Pending', success: 'Paid', failed: 'Failed', abandoned: 'Abandoned' }
+const DAY = 86_400_000
 
 /** History is a nicety: a failed read shows the empty state, never an error page. */
 async function loadPayments(userId: string): Promise<PaymentRow[]> {
@@ -19,6 +23,17 @@ async function loadPayments(userId: string): Promise<PaymentRow[]> {
     return (await db<PaymentRow[]>('payments', {}, `?select=${PAYMENT_COLUMNS}&user_id=eq.${userId}&order=created_at.desc&limit=12`)) ?? []
   } catch {
     return []
+  }
+}
+
+/** Only a live subscription has a card Paystack can open. The code itself never
+ *  leaves the server: the button asks the API for a link on click. */
+async function hasSubscription(userId: string): Promise<boolean> {
+  try {
+    const rows = await db<Array<{ paystack_subscription_code: string | null }>>('entitlements', {}, `?select=paystack_subscription_code&user_id=eq.${userId}&limit=1`)
+    return Boolean(rows?.[0]?.paystack_subscription_code)
+  } catch {
+    return false
   }
 }
 
@@ -35,26 +50,51 @@ function FreePlan() {
   </div>
 }
 
-function PremiumPlan({ summary }: { summary: EntitlementSummary }) {
-  return <div className="plan-card sub-plan">
-    <div className="sub-head">
-      <h2>{summary.planLabel}</h2>
-      <span className={`sub-state sub-state-${summary.status ?? 'active'}`}>{summary.statusLabel}</span>
-    </div>
-    {summary.periodLabel && <p className="sub-term">{summary.periodLabel}</p>}
-    <ul className="plan-list"><li>Every year of every exam</li><li>Practice and CBT across the full bank</li><li>Progress and history kept as before</li></ul>
-  </div>
-}
-
 export default async function SubscriptionPage() {
   const { user } = await requireUser()
   const summary = getEntitlementSummary(user)
-  const payments = await loadPayments(user.id)
+  const [payments, pricing, subscribed] = await Promise.all([loadPayments(user.id), getPricing(), hasSubscription(user.id)])
+
+  const pastDue = summary.status === 'past_due'
+  // The grace window is the same three days the entitlement rules allow.
+  const graceEndsOn = summary.endsAt ? calendarDate(new Date(Date.parse(summary.endsAt) + 3 * DAY)) : null
 
   return (
     <ProfileLayout>
-      <PageHeader title="Subscription" description="Choose how you want to prepare." />
-      {summary.premium ? <PremiumPlan summary={summary} /> : <FreePlan />}
+      <PageHeader title="Subscription" description="How your premium access runs, and what it has cost." />
+      {summary.premium ? (
+        <div className="plan-card sub-plan">
+          <div className="sub-head">
+            <h2>{summary.planLabel}</h2>
+            <span className={`sub-state sub-state-${summary.status ?? 'active'}`}>{summary.statusLabel}</span>
+          </div>
+
+          {pastDue && (
+            <div className="sub-alert" role="status">
+              <div>
+                <strong>Your last renewal payment didn&rsquo;t go through</strong>
+                <p>
+                  Your access continues while we try again{graceEndsOn ? `, until ${graceEndsOn}` : ''}. Updating the card is the quickest fix.
+                </p>
+              </div>
+              <UpdateCardButton className="sub-button sub-button-small" />
+            </div>
+          )}
+
+          <SubscriptionActions
+            plan={summary.plan}
+            status={summary.status}
+            premium={summary.premium}
+            endsOn={summary.endsAt ? calendarDate(summary.endsAt) : null}
+            renewAmount={formatNaira(pricing.monthlyKobo)}
+            cancelAtPeriodEnd={summary.cancelAtPeriodEnd}
+            hasSubscription={subscribed}
+          />
+        </div>
+      ) : (
+        <FreePlan />
+      )}
+
       <section className="sub-history" aria-labelledby="sub-history-title">
         <h2 id="sub-history-title">Payment history</h2>
         {payments.length === 0 ? (
@@ -68,6 +108,9 @@ export default async function SubscriptionPage() {
                 <span className={`sub-pay-status sub-pay-${payment.status}`}>{STATUS_COPY[payment.status] ?? payment.status}</span>
                 <span className="sub-pay-amount">{formatNaira(payment.amount_kobo)}</span>
                 <span className="sub-pay-ref" title={planLabel(payment.plan)}>{shortReference(payment.reference)}</span>
+                {payment.status === 'success'
+                  ? <ReceiptButton reference={payment.reference} />
+                  : <span className="sub-receipt-cell" aria-hidden="true" />}
               </li>
             ))}
           </ul>

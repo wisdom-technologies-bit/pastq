@@ -13,10 +13,13 @@ export type PaystackErrorCode = 'not_configured' | 'unreachable' | 'rejected'
 
 export class PaystackError extends Error {
   readonly code: PaystackErrorCode
-  constructor(code: PaystackErrorCode, message: string) {
+  /** The provider's own words. Internal only: never returned to a browser. */
+  readonly detail: string | null
+  constructor(code: PaystackErrorCode, message: string, detail: string | null = null) {
     super(message)
     this.name = 'PaystackError'
     this.code = code
+    this.detail = detail
   }
 }
 
@@ -71,8 +74,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const body = (await response.json().catch(() => null)) as Envelope<T> | null
   if (!response.ok || !body || body.status === false || body.data === undefined) {
     // The provider message can carry account detail, so it stays out of the copy
-    // we hand back to the page.
-    throw new PaystackError('rejected', 'Paystack could not complete that request. Please try again in a moment.')
+    // we hand back to the page and lives only on the error object.
+    const detail = typeof body?.message === 'string' ? body.message.slice(0, 200) : null
+    throw new PaystackError('rejected', 'Paystack could not complete that request. Please try again in a moment.', detail)
   }
   return body.data
 }
@@ -150,13 +154,19 @@ export async function getOrCreatePlan(amountKobo: number): Promise<{ planCode: s
   return { planCode: stored?.[0]?.plan_code ?? planCode }
 }
 
-/** Best effort: stopping the old subscription must never break a lifetime grant. */
-export async function disableSubscription(code: string, token: string): Promise<boolean> {
+export type DisableOutcome = 'disabled' | 'already' | 'error'
+
+/** 'already' matters: a subscription Paystack has stopped is as good as stopped,
+ *  so cancelling twice must still succeed. */
+const ALREADY_STOPPED = /already|not active|not enabled|no active|disabled/i
+
+export async function disableSubscription(code: string, token: string): Promise<DisableOutcome> {
   try {
     await request(`/subscription/disable`, { method: 'POST', body: JSON.stringify({ code, token }) })
-    return true
-  } catch {
-    return false
+    return 'disabled'
+  } catch (error) {
+    if (error instanceof PaystackError && error.code === 'rejected' && ALREADY_STOPPED.test(error.detail ?? '')) return 'already'
+    return 'error'
   }
 }
 

@@ -3,10 +3,10 @@ import {
   applySuccessfulCharge,
   linkSubscription,
   markSubscriptionPastDue,
-  notifyPaymentFailed,
   claimPaymentEvent,
   stopRenewal,
 } from '@/lib/billing/apply'
+import { notifyPaymentFailed } from '@/lib/billing/notify'
 import { verifySignature } from '@/lib/billing/paystack'
 
 export const dynamic = 'force-dynamic'

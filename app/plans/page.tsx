@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { BannerSlot } from '@/components/banners/BannerSlot'
 import { PlansView } from '@/components/plans/plans-view'
 import { getCurrentUser } from '@/lib/auth/session'
 import { getEntitlementSummary } from '@/lib/entitlements'
+import { calendarDate } from '@/lib/dates'
 import { formatNaira, getPricing, isPaystackTestMode } from '@/lib/billing/pricing'
 
 export const metadata: Metadata = {
@@ -22,13 +24,24 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
   const params = await searchParams
   const [current, pricing] = await Promise.all([getCurrentUser(), getPricing()])
   const summary = getEntitlementSummary(current?.user)
+  // Premium that is already running out can be renewed or restarted from here;
+  // only live plans and lifetime get the manage-only panel.
+  const canResume = summary.premium && (summary.cancelAtPeriodEnd || summary.plan === 'monthly_manual' || summary.status === 'past_due')
+  const endsOn = summary.endsAt ? calendarDate(summary.endsAt) : null
+  const resume = !canResume ? null : summary.status === 'past_due' ? (
+    <p className="pl-resume">
+      Your last renewal payment didn&rsquo;t go through. <Link className="pl-resume-link" href="/profile/subscription">Update your card</Link> to keep premium.
+    </p>
+  ) : (
+    <p className="pl-resume">Premium ends on {endsOn ?? 'the end of your period'}. Choose a plan to keep every year open.</p>
+  )
 
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       <PlansView
         signedIn={Boolean(current)}
-        premium={summary.premium}
+        premium={summary.premium && !canResume}
         testMode={isPaystackTestMode()}
         monthlyPrice={formatNaira(pricing.monthlyKobo)}
         lifetimePrice={formatNaira(pricing.lifetimeKobo)}
@@ -38,6 +51,7 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
         statusLabel={summary.statusLabel}
         periodLabel={summary.periodLabel}
         cancelAtPeriodEnd={summary.cancelAtPeriodEnd}
+        resume={resume}
       >
         <BannerSlot slot="plans_top" />
       </PlansView>

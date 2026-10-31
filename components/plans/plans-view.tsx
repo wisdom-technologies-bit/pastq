@@ -19,6 +19,8 @@ export type PlansViewProps = {
   statusLabel: string
   periodLabel: string | null
   cancelAtPeriodEnd: boolean
+  /** Shown above the cards when premium is running out and can be renewed. */
+  resume?: React.ReactNode
   /** Slot for the plans banner, rendered straight after the hero. */
   children?: React.ReactNode
 }
@@ -149,6 +151,8 @@ export function PlansView(props: PlansViewProps) {
             )}
           </>
         ) : (
+          <>
+          {props.resume}
           <div className="pl-prices">
             <article className="pl-card" aria-labelledby="pl-monthly-title">
               <h2 id="pl-monthly-title">Monthly</h2>
@@ -182,6 +186,7 @@ export function PlansView(props: PlansViewProps) {
               <div className="pl-card-actions">{lifetimeCta}</div>
             </article>
           </div>
+          </>
         )}
 
         {error && <p className="pl-error" role="alert">{error}</p>}

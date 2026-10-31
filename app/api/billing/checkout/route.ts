@@ -12,14 +12,10 @@ export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({ plan: z.enum(['monthly_auto', 'monthly_manual', 'lifetime']) })
 
-type EntitlementState = { plan: string; status: string; current_period_end: string | null }
+type EntitlementState = { plan: string; status: string; current_period_end: string | null; cancel_at_period_end: boolean }
 
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
 const appUrl = (request: Request) => (env.APP_URL || new URL(request.url).origin).replace(/\/+$/, '')
-const paidUntil = (value: string | null) => {
-  const parsed = value ? Date.parse(value) : Number.NaN
-  return Number.isFinite(parsed) ? parsed : 0
-}
 
 export async function POST(request: Request) {
   try {
@@ -44,16 +40,17 @@ export async function POST(request: Request) {
   if (!parsed.success) return json({ error: 'Choose a plan to continue.' }, 400)
   const plan = parsed.data.plan
 
-  const states = await db<EntitlementState[]>('entitlements', {}, `?select=plan,status,current_period_end&user_id=eq.${encodeURIComponent(user.id)}&limit=1`).catch(() => [] as EntitlementState[])
+  const states = await db<EntitlementState[]>('entitlements', {}, `?select=plan,status,current_period_end,cancel_at_period_end&user_id=eq.${encodeURIComponent(user.id)}&limit=1`).catch(() => [] as EntitlementState[])
   const current = states?.[0] ?? null
-  const now = Date.now()
-  const stillPaid = paidUntil(current?.current_period_end ?? null) > now
 
   if (current?.plan === 'lifetime' && current.status === 'active') {
     return json({ error: 'You already have lifetime access. Nothing more to pay.' }, 409)
   }
-  if (plan !== 'lifetime' && current?.plan === 'monthly_auto' && (current.status === 'active' || current.status === 'past_due') && stillPaid) {
-    return json({ error: 'Your monthly plan already renews automatically. Manage it from your subscription page.' }, 409)
+  // A live automatic renewal stays the only way to pay: buying a second month
+  // beside it would charge twice. Lifetime is always allowed, since it stops it.
+  const autoRenewing = current?.plan === 'monthly_auto' && !current.cancel_at_period_end && (current.status === 'active' || current.status === 'past_due')
+  if (plan !== 'lifetime' && autoRenewing) {
+    return json({ error: 'You already have automatic renewal on. Manage it from your subscription page.' }, 409)
   }
 
   const pricing = await getPricing()
