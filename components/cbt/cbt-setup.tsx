@@ -167,7 +167,7 @@ export function CbtSetup(props: CbtSetupProps) {
                     {props.compulsoryCount} questions · <b>Required</b>
                   </small>
                 </span>
-                <LockKeyhole className="cbt-subject-lock" size={15} aria-hidden="true" />
+                {!props.activated && <LockKeyhole className="cbt-subject-lock" size={15} aria-hidden="true" />}
               </span>
             </li>
           )}
@@ -184,7 +184,7 @@ export function CbtSetup(props: CbtSetupProps) {
                     {props.compulsoryCount} questions · Borrowed from {props.borrow?.donorYear}
                   </small>
                 </span>
-                <LockKeyhole className="cbt-subject-lock" size={15} aria-hidden="true" />
+                {!props.activated && <LockKeyhole className="cbt-subject-lock" size={15} aria-hidden="true" />}
               </span>
             </li>
           )}
@@ -289,7 +289,7 @@ export function CbtSetup(props: CbtSetupProps) {
           {error.code === 'premium_required' && (
             <>
               {' '}
-              <Link className="text-link" href="/plans">
+              <Link className="text-link" href={`/plans?next=${encodeURIComponent(props.nextPath)}`}>
                 See plans
               </Link>
             </>
