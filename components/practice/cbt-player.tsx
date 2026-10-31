@@ -1,38 +1,863 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Check, Flag, Grid2X2, Menu, X, ZoomIn } from 'lucide-react'
-import type { PlayerMeta } from './types'
+import { ArrowLeft, Flag, Grid2X2, Loader2, Menu, ZoomIn } from 'lucide-react'
+import { normalizeQuestion, type PlayerMeta, type Question } from './types'
+import './cbt-player.css'
 
-type Option = { key: string; text: string }
-type Feedback = { ref: string; is_correct: boolean; correct_choice: string }
-type Question = { ref: string; number: number; subject?: string; passage?: unknown; text?: unknown; image_url?: string | null; image?: string | null; question?: { text?: unknown; image_url?: string | null } | string; options?: Option[]; your_choice?: string | null; flagged?: boolean; correct_choice?: string | null; is_correct?: boolean }
-const LETTERS = ['A', 'B', 'C', 'D', 'E']
-const textOf = (value: unknown) => typeof value === 'string' ? value : value && typeof value === 'object' ? String((value as Record<string, unknown>).html ?? (value as Record<string, unknown>).text ?? '') : ''
-const cleanHtml = (html: string) => html.replace(/<img[^>]*>/gi, '')
-const img = (item: Question) => item.image_url ?? (typeof item.question === 'object' && item.question ? item.question.image_url : null)
-const text = (item: Question) => textOf(item.text ?? (typeof item.question === 'object' ? item.question.text : item.question))
-function normalize(raw: any, i: number): Question | null { const item = raw?.data ?? raw; const question = item?.question ?? item?.question_text ?? item?.text; const options = Array.isArray(item?.options) ? item.options.map((o: any, j: number) => ({ key: String(o?.key ?? LETTERS[j]), text: textOf(o?.text ?? o?.label ?? o) })).filter((o: Option) => o.text) : []; if (!item || !options.length || !textOf(question)) return null; return { ...item, ref: String(item.ref ?? item.id ?? `question-${i + 1}`), number: Number(item.number ?? i + 1), question, options } }
+const PAGE_SIZE = 30
+const MARKS = [600000, 300000, 60000]
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+type SubjectGroup = { name: string; start: number; count: number }
+type SessionState = {
+  status: string
+  deadline_at: string | null
+  server_now: string
+  answered: number
+  total: number
+  flagged: number
+  subjects: Array<{ slug: string; name: string; question_count: number; first_position: number }>
+}
+
+const clockText = (ms: number) => {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${minutes}:${String(seconds).padStart(2, '0')}`
+}
 
 export default function CbtPlayer({ meta }: { meta: PlayerMeta }) {
-  const { id } = useParams<{ id: string }>(); const router = useRouter(); const search = useSearchParams()
-  const [questions, setQuestions] = useState<Question[]>([]); const [total, setTotal] = useState(0); const [index, setIndex] = useState(0); const [loading, setLoading] = useState(true); const [loadingMore, setLoadingMore] = useState(false); const [error, setError] = useState(''); const [offline, setOffline] = useState(false); const [queue, setQueue] = useState<string[]>([]); const [palette, setPalette] = useState(false); const [menu, setMenu] = useState(false); const [leave, setLeave] = useState(false); const [report, setReport] = useState(false); const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium'); const [zoom, setZoom] = useState<string | null>(null); const [revealed, setRevealed] = useState<Record<number, Feedback>>({}); const q = questions[index]; const heading = useRef<HTMLHeadingElement>(null)
-  const load = useCallback(async (from = 1, append = false, targetNumber?: number) => { if (append) setLoadingMore(true); else setLoading(true); try { const response = await fetch(`/api/sessions/${id}/questions?from=${from}&limit=30`, { cache: 'no-store' }); if (!response.ok) throw new Error(); const body = await response.json(); const list = (Array.isArray(body.data) ? body.data : []).map(normalize).filter(Boolean) as Question[]; setQuestions((old) => { const merged = append ? [...old, ...list.filter((item) => !old.some((existing) => existing.ref === item.ref))] : list; if (targetNumber) { const target = merged.findIndex((item) => item.number === targetNumber); if (target >= 0) setIndex(target) } return merged }); setTotal(Number(body.meta?.total_questions ?? body.meta?.total ?? body.total_questions ?? body.total ?? 0)); if (!append && !targetNumber) { const wanted = Number(search.get('q') || 0); const target = wanted ? list.findIndex((x) => x.number === wanted) : list.findIndex((x) => !x.your_choice); setIndex(Math.max(0, target < 0 ? 0 : target)) } setError('') } catch { setError('Could not load this question.') } finally { setLoading(false); setLoadingMore(false) } }, [id, search])
-  useEffect(() => { load() }, [load])
-  useEffect(() => { if (q && index >= questions.length - 5 && questions.length < total && !loadingMore) load(Math.floor(questions.length / 30) * 30 + 1, true) }, [q, index, questions.length, total, loadingMore, load])
-  useEffect(() => { heading.current?.focus(); setReport(false) }, [q?.ref])
-  useEffect(() => { const sync = () => setOffline(!navigator.onLine || queue.length > 0); sync(); window.addEventListener('online', sync); window.addEventListener('offline', sync); return () => { window.removeEventListener('online', sync); window.removeEventListener('offline', sync) } }, [queue.length])
-  const save = useCallback(async (question: Question, payload: { choice?: string; flagged?: boolean }, rollback?: () => void) => { try { const response = await fetch(`/api/sessions/${id}/answers`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers: [{ ref: question.ref, ...payload }] }) }); if (!response.ok) { if (response.status >= 500) throw new Error('retry'); setQueue((items) => items.filter((ref) => ref !== question.ref)); rollback?.(); setError('Could not save that. Please try again.'); return false } setQueue((items) => items.filter((ref) => ref !== question.ref)); setOffline(false); const body = await response.json().catch(() => null); const answer = (body?.data?.answers ?? body?.answers ?? []).find((item: Feedback) => item.ref === question.ref); if (answer?.correct_choice && typeof answer.is_correct === 'boolean') setRevealed((items) => ({ ...items, [question.number]: answer })); return true } catch { setQueue((items) => items.includes(question.ref) ? items : [...items, question.ref]); setOffline(true); return false } }, [id])
-  useEffect(() => { if (!queue.length || !navigator.onLine) return; const retry = async () => { for (const ref of queue) { const item = questions.find((x) => x.ref === ref); if (item) await save(item, { ...(item.your_choice ? { choice: item.your_choice } : {}), flagged: item.flagged }) } }; retry() }, [queue, questions, save])
-  const choose = (choice: string) => { if (!q || q.your_choice) return; const previous = q.your_choice; setQuestions((items) => items.map((item) => item.ref === q.ref ? { ...item, your_choice: choice } : item)); save(q, { choice }, () => setQuestions((items) => items.map((item) => item.ref === q.ref ? { ...item, your_choice: previous } : item))) }
-  const toggleFlag = () => { if (!q) return; const previous = q.flagged; const next = !previous; setQuestions((items) => items.map((item) => item.ref === q.ref ? { ...item, flagged: next } : item)); save(q, { flagged: next }, () => setQuestions((items) => items.map((item) => item.ref === q.ref ? { ...item, flagged: previous } : item))) }
-  const go = (next: number) => { if (next < 0 || next >= total) return; const loaded = questions.findIndex((item) => item.number === next + 1); if (loaded >= 0) return setIndex(loaded); setLoading(true); load(Math.floor(next / 30) * 30 + 1, true, next + 1) }
-  const feedback = q ? revealed[q.number] : undefined; const correctChoice = q?.correct_choice ?? feedback?.correct_choice ?? null; const answered = questions.filter((item) => item.your_choice).length; const passage = textOf(q?.passage); const questionText = q ? text(q) : ''; const questionImage = q ? img(q) : null
-  if (loading && !q) return <main className="player-page player-focus"><div className="player-skeleton" /><div className="player-skeleton short" /></main>
-  if (error && !q) return <main className="player-page player-centered"><h1>We couldn&apos;t load this right now</h1><p>{error}</p><button className="primary-button" onClick={() => load()}>Retry</button></main>
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const search = useSearchParams()
+
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [total, setTotal] = useState(meta.total_questions || 0)
+  const [index, setIndex] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState('')
+  const [session, setSession] = useState<SessionState | null>(null)
+  const [answered, setAnswered] = useState(0)
+  const [flagged, setFlagged] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
+  const [queueSize, setQueueSize] = useState(0)
+  const [offline, setOffline] = useState(false)
+  const [palette, setPalette] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const [leave, setLeave] = useState(false)
+  const [submitOpen, setSubmitOpen] = useState(false)
+  const [submitPrep, setSubmitPrep] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium')
+  const [zoom, setZoom] = useState<string | null>(null)
+  const [timeUp, setTimeUp] = useState(false)
+  const [announce, setAnnounce] = useState('')
+  const [toasts, setToasts] = useState<Array<{ id: number; text: string }>>([])
+
+  const offset = useRef(0)
+  const primed = useRef(false)
+  const fired = useRef<Set<number>>(new Set())
+  const questionsRef = useRef<Question[]>([])
+  const totalRef = useRef(total)
+  const pending = useRef<number | null>(null)
+  const seeded = useRef(false)
+  const busy = useRef(false)
+  const navigating = useRef(false)
+  const queue = useRef(new Map<string, { choice?: string | null; flagged?: boolean }>())
+  const toastId = useRef(0)
+  const heading = useRef<HTMLHeadingElement>(null)
+
+  const q = questions[index]
+
+  useEffect(() => {
+    questionsRef.current = questions
+  }, [questions])
+  useEffect(() => {
+    totalRef.current = total
+  }, [total])
+
+  const deadline = session?.deadline_at ? new Date(session.deadline_at).getTime() : null
+  const remaining = deadline === null ? null : Math.max(0, deadline - (now + offset.current))
+  const locked = timeUp || session?.status === 'submitted' || session?.status === 'expired'
+
+  /* Only tick once a deadline is known: the value is always recomputed from the
+     corrected clock, never decremented, so sleeping tabs stay accurate. */
+  useEffect(() => {
+    if (deadline === null) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [deadline])
+
+  const pushToast = useCallback((text: string) => {
+    const stamp = ++toastId.current
+    setToasts((items) => [...items, { id: stamp, text }])
+    window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== stamp)), 6000)
+  }, [])
+
+  /* --------------------------------------------------------------- saving */
+  const syncQueue = useCallback(() => setQueueSize(queue.current.size), [])
+
+  const persist = useCallback(
+    async (question: Question, intent: { choice?: string | null; flagged?: boolean }) => {
+      try {
+        const response = await fetch(`/api/sessions/${id}/answers`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers: [{ ref: question.ref, ...intent }] }),
+        })
+        if (response.ok) {
+          queue.current.delete(question.ref)
+          syncQueue()
+          setOffline(false)
+          setError('')
+          return true
+        }
+        if (response.status >= 500) {
+          queue.current.set(question.ref, { ...queue.current.get(question.ref), ...intent })
+          syncQueue()
+          setOffline(true)
+          return false
+        }
+        queue.current.delete(question.ref)
+        syncQueue()
+        setError('We could not save that answer. Please try again.')
+        return false
+      } catch {
+        queue.current.set(question.ref, { ...queue.current.get(question.ref), ...intent })
+        syncQueue()
+        setOffline(true)
+        return false
+      }
+    },
+    [id, syncQueue],
+  )
+
+  const flush = useCallback(
+    async (timeoutMs = 10000) => {
+      if (!queue.current.size) return true
+      const work = (async () => {
+        for (const ref of Array.from(queue.current.keys())) {
+          const intent = queue.current.get(ref)
+          if (!intent) {
+            queue.current.delete(ref)
+            continue
+          }
+          const item = questionsRef.current.find((question) => question.ref === ref)
+          // Keep the intent rather than dropping a student's answer.
+          if (!item) continue
+          const saved = await persist(item, intent)
+          if (!saved) break
+        }
+      })()
+      await Promise.race([work, delay(timeoutMs)])
+      syncQueue()
+      return queue.current.size === 0
+    },
+    [persist, syncQueue],
+  )
+
+  useEffect(() => {
+    if (!queueSize) return
+    const timer = window.setInterval(() => {
+      if (navigator.onLine) void flush()
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [queueSize, flush])
+
+  /* ------------------------------------------------------------- session */
+  const refreshState = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/sessions/${id}/state`, { cache: 'no-store' })
+      if (!response.ok) return
+      const data = (await response.json()) as SessionState
+      const serverNow = new Date(data.server_now).getTime()
+      if (Number.isFinite(serverNow)) offset.current = serverNow - Date.now()
+      setSession(data)
+      if (data.status === 'submitted' || data.status === 'expired') {
+        router.replace(`/practice/session/${id}/result`)
+        return
+      }
+      if (!seeded.current) {
+        seeded.current = true
+        setAnswered(data.answered)
+        setFlagged(data.flagged)
+      }
+      if (data.total > 0) setTotal((value) => (value > 0 ? value : data.total))
+    } catch {
+      /* keep the last known clock and try again on the next tick */
+    }
+  }, [id, router])
+
+  useEffect(() => {
+    void refreshState()
+    const timer = window.setInterval(() => void refreshState(), 60000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshState()
+    }
+    const onOnline = () => {
+      setOffline(false)
+      void refreshState()
+      void flush()
+    }
+    const onOffline = () => setOffline(true)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [refreshState, flush])
+
+  /* ------------------------------------------------------------ questions */
+  const loadPage = useCallback(
+    async (from: number, append: boolean): Promise<Question[]> => {
+      if (append) setLoadingMore(true)
+      else setLoading(true)
+      try {
+        const response = await fetch(`/api/sessions/${id}/questions?from=${from}&limit=${PAGE_SIZE}`, { cache: 'no-store' })
+        if (!response.ok) throw new Error('failed')
+        const body = await response.json()
+        const rows: unknown[] = Array.isArray(body?.data) ? body.data : Array.isArray(body?.data?.items) ? body.data.items : []
+        const list: Question[] = []
+        rows.forEach((row, position) => {
+          const item = normalizeQuestion(row, from - 1 + position)
+          if (item) list.push(item)
+        })
+        const remoteTotal = Number(body?.meta?.total_questions ?? body?.meta?.total ?? body?.total_questions ?? body?.total ?? 0)
+        setQuestions((old) => (append ? [...old, ...list.filter((item) => !old.some((existing) => existing.ref === item.ref))] : list))
+        if (remoteTotal > 0) setTotal(remoteTotal)
+        setError('')
+        return list
+      } catch {
+        setError("We couldn't load this question. Check your connection and try again.")
+        return []
+      } finally {
+        setLoading(false)
+        setLoadingMore(false)
+      }
+    },
+    [id],
+  )
+
+  const wantedParam = search.get('q') ?? ''
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const list = await loadPage(1, false)
+      if (cancelled || !list.length) return
+      const wanted = Number(wantedParam || 0)
+      const target = wanted ? list.findIndex((item) => item.number === wanted) : list.findIndex((item) => !item.your_choice)
+      setIndex(Math.max(0, target < 0 ? 0 : target))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [loadPage, wantedParam])
+
+  useEffect(() => {
+    if (loading || loadingMore) return
+    if (!total || questions.length >= total) return
+    if (index >= questions.length - 3) void loadPage(questions.length + 1, true)
+  }, [index, questions.length, total, loading, loadingMore, loadPage])
+
+  useEffect(() => {
+    const target = pending.current
+    if (target === null) return
+    const found = questions.findIndex((item) => item.number === target)
+    if (found >= 0) {
+      pending.current = null
+      setIndex(found)
+    }
+  }, [questions])
+
+  const ensureAll = useCallback(async () => {
+    let loaded = questionsRef.current.length
+    const limit = Math.max(totalRef.current, loaded)
+    let guard = 0
+    while (loaded < limit && guard < 25) {
+      const added = await loadPage(loaded + 1, true)
+      if (!added.length) break
+      loaded += added.length
+      guard++
+    }
+  }, [loadPage])
+
+  const goTo = useCallback(
+    async (number: number) => {
+      if (number < 1) return
+      const loaded = questionsRef.current.findIndex((item) => item.number === number)
+      if (loaded >= 0) {
+        setIndex(loaded)
+        return
+      }
+      pending.current = number
+      let count = questionsRef.current.length
+      const limit = Math.max(totalRef.current, number)
+      let guard = 0
+      while (count < limit && guard < 25) {
+        const added = await loadPage(count + 1, true)
+        if (!added.length) break
+        count += added.length
+        guard++
+      }
+      if (pending.current === number) pending.current = null
+    },
+    [loadPage],
+  )
+
+  const jump = useCallback((number: number) => void goTo(number), [goTo])
+  const jumpFromSheet = useCallback(
+    (number: number) => {
+      setPalette(false)
+      void goTo(number)
+    },
+    [goTo],
+  )
+
+  /* --------------------------------------------------------------- answering */
+  const choose = (key: string) => {
+    if (!q || locked) return
+    const previous = q.your_choice ?? null
+    const next = previous === key ? null : key
+    const ref = q.ref
+    setQuestions((items) => items.map((item) => (item.ref === ref ? { ...item, your_choice: next } : item)))
+    setAnswered((value) => Math.max(0, value + (next ? 1 : 0) - (previous ? 1 : 0)))
+    void persist(q, { choice: next })
+  }
+
+  const toggleFlag = () => {
+    if (!q || locked) return
+    const next = !q.flagged
+    const ref = q.ref
+    setQuestions((items) => items.map((item) => (item.ref === ref ? { ...item, flagged: next } : item)))
+    setFlagged((value) => Math.max(0, value + (next ? 1 : -1)))
+    void persist(q, { flagged: next })
+  }
+
+  /* ---------------------------------------------------------------- submit */
+  const submitExam = useCallback(
+    async (auto: boolean) => {
+      if (busy.current) return
+      busy.current = true
+      setSubmitting(true)
+      setSubmitError('')
+      try {
+        await flush(auto ? 5000 : 10000)
+        const attempts = auto ? 4 : 1
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+          try {
+            const response = await fetch(`/api/sessions/${id}/submit`, { method: 'POST' })
+            if (response.ok) {
+              navigating.current = true
+              router.replace(`/practice/session/${id}/result`)
+              return
+            }
+            const body = await response.json().catch(() => null)
+            setSubmitError(
+              body && typeof body.error === 'string' ? body.error : 'We could not submit your exam. Please try again.',
+            )
+          } catch {
+            setSubmitError('We could not reach PastQ. Check your connection and try again.')
+          }
+          if (attempt < attempts) await delay(1500)
+        }
+      } finally {
+        busy.current = false
+        if (!navigating.current) setSubmitting(false)
+      }
+    },
+    [flush, id, router],
+  )
+
+  /* -------------------------------------------------- thresholds + time up */
+  useEffect(() => {
+    if (remaining === null) return
+    const first = !primed.current
+    if (first) {
+      // Opening a session that is already under a threshold must not replay it.
+      primed.current = true
+      for (const mark of MARKS) if (remaining <= mark - 1000) fired.current.add(mark)
+    }
+    if (remaining <= 0) {
+      if (timeUp) return
+      setTimeUp(true)
+      setSubmitOpen(false)
+      setMenu(false)
+      setPalette(false)
+      void submitExam(true)
+      return
+    }
+    if (first) return
+    for (const mark of MARKS) {
+      if (remaining > mark || fired.current.has(mark)) continue
+      fired.current.add(mark)
+      const minutes = mark / 60000
+      const text = `${minutes} minute${minutes === 1 ? '' : 's'} left`
+      pushToast(text)
+      setAnnounce(text)
+    }
+  }, [remaining, timeUp, submitExam, pushToast])
+
+  /* ------------------------------------------------------------ shortcuts */
+  useEffect(() => {
+    if (locked) return
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [locked])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (timeUp || palette || menu || leave || submitOpen || zoom) return
+      const key = event.key.toLowerCase()
+      const option = q?.options?.find((item) => item.key.toLowerCase() === key)
+      if (option) {
+        event.preventDefault()
+        choose(option.key)
+        return
+      }
+      if (key === 'n') {
+        event.preventDefault()
+        void goTo((q?.number ?? 0) + 1)
+      } else if (key === 'p') {
+        event.preventDefault()
+        void goTo((q?.number ?? 1) - 1)
+      } else if (key === 'f') {
+        event.preventDefault()
+        toggleFlag()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  useEffect(() => {
+    heading.current?.focus()
+  }, [q?.ref])
+
+  /* ----------------------------------------------------------------- views */
+  const groups = useMemo<SubjectGroup[]>(() => {
+    const fromServer = (session?.subjects ?? []).filter((subject) => subject.question_count > 0)
+    if (fromServer.length) {
+      return fromServer.map((subject) => ({ name: subject.name, start: subject.first_position, count: subject.question_count }))
+    }
+    const buckets = new Map<string, number[]>()
+    for (const item of questions) {
+      const key = item.subject || 'Questions'
+      const bucket = buckets.get(key) ?? []
+      bucket.push(item.number)
+      buckets.set(key, bucket)
+    }
+    return Array.from(buckets, ([name, numbers]) => ({ name, start: Math.min(...numbers), count: numbers.length }))
+  }, [session, questions])
+
+  const status = useMemo(() => {
+    const map = new Map<number, { answered: boolean; flagged: boolean }>()
+    for (const item of questions) map.set(item.number, { answered: Boolean(item.your_choice), flagged: Boolean(item.flagged) })
+    return map
+  }, [questions])
+
+  // Once every question is loaded the counts are exact, so align them with the
+  // answers the Bank returned instead of the running tally.
+  useEffect(() => {
+    if (!questions.length || questions.length < (total || 0)) return
+    setAnswered(questions.filter((item) => item.your_choice).length)
+    setFlagged(questions.filter((item) => item.flagged).length)
+  }, [questions, total])
+
+  const questionTotal = total || meta.total_questions || questions.length
+  const unanswered = Math.max(0, questionTotal - answered)
+  const currentSubject = (() => {
+    if (!q) return ''
+    const group = groups.find((item) => q.number >= item.start && q.number < item.start + item.count)
+    return group?.name ?? q.subject ?? ''
+  })()
+  const passage = q?.passage ?? ''
+  const questionImage = q?.image_url ?? null
+  const chips = questions.filter((item) => !item.your_choice || item.flagged).map((item) => item.number)
+  const tone = remaining !== null && remaining <= 300000 ? 'danger' : remaining !== null && remaining <= 600000 ? 'warn' : ''
+  const title = `${meta.exam_name}${meta.exam_year ? ` ${meta.exam_year}` : ''}`
+
+  const openSubmit = async () => {
+    setMenu(false)
+    setSubmitError('')
+    setSubmitOpen(true)
+    setSubmitPrep(true)
+    await ensureAll()
+    setSubmitPrep(false)
+  }
+
+  if (loading && !q)
+    return (
+      <main className="player-page player-focus">
+        <div className="player-skeleton" />
+        <div className="player-skeleton short" />
+      </main>
+    )
+  if (error && !q)
+    return (
+      <main className="player-page player-centered">
+        <h1>We couldn&apos;t load this right now</h1>
+        <p>{error}</p>
+        <button className="primary-button" onClick={() => void loadPage(1, false)}>Retry</button>
+      </main>
+    )
   if (!q) return null
-  return <main className="player-page player-focus"><header className="player-top"><button className="icon-button" aria-label="Leave session" onClick={() => setLeave(true)}><ArrowLeft /></button><div><strong>{meta.exam_name}{meta.exam_year ? ` ${meta.exam_year}` : ''}</strong><small>{meta.subject_names.join(' · ')}</small></div><span className="player-counter">{q.number} / {total}</span><button className="icon-button" aria-label="More options" onClick={() => setMenu(true)}><Menu /></button></header><div className="player-progress"><span style={{ width: `${total ? answered / total * 100 : 0}%` }} /></div>{offline && <div className="offline-banner">You&apos;re offline. Your answers will save when you&apos;re back.</div>}{error && <div className="offline-banner" role="status">{error}</div>}<div className="player-layout"><section className="question-wrap"><p className="question-label">Question {q.number}</p><h1 ref={heading} tabIndex={-1} className="question-text" style={{ fontSize: size === 'small' ? 16 : size === 'large' ? 21 : 18 }} dangerouslySetInnerHTML={{ __html: cleanHtml(questionText) }} />{passage && <article className="passage-card"><small>Passage</small><div dangerouslySetInnerHTML={{ __html: cleanHtml(passage) }} /></article>}{questionImage?.startsWith('https://') && <button className="question-image-wrap" onClick={() => setZoom(questionImage)} aria-label="Zoom question image"><img className="question-image" loading="lazy" src={questionImage} alt={`Diagram for question ${q.number}`} onError={(event) => { event.currentTarget.style.display = 'none' }} /><ZoomIn size={18} /></button>}<div className="question-actions"><span>Choose one answer</span><button className={`flag-button ${q.flagged ? 'active' : ''}`} onClick={toggleFlag} aria-label={q.flagged ? 'Remove flag' : 'Flag for review'}><Flag /></button></div><div className="options" role="radiogroup" aria-label="Answer options">{q.options?.map((o) => <button key={o.key} role="radio" aria-checked={q.your_choice === o.key} className={`option ${q.your_choice === o.key ? 'selected' : ''} ${correctChoice === o.key ? 'correct' : ''} ${feedback && q.your_choice === o.key && feedback.is_correct === false ? 'wrong' : ''}`} onClick={() => choose(o.key)} disabled={Boolean(q.your_choice)}><b>{o.key}</b><span dangerouslySetInnerHTML={{ __html: o.text }} />{correctChoice === o.key && <Check />}{feedback && q.your_choice === o.key && feedback.is_correct === false && <X />}</button>)}</div>{feedback && <p className={`feedback-strip ${feedback.is_correct ? 'correct' : 'wrong'}`} role="status">{feedback.is_correct ? 'Correct' : `Not quite. The answer is ${feedback.correct_choice}`}</p>}</section><aside className="player-rail"><Palette questions={questions} index={index} setIndex={setIndex} /></aside></div><nav className="player-nav"><button className="secondary-button" onClick={() => setPalette(true)}><Grid2X2 size={17} /><span>Questions</span><b>{q.number}/{total}</b></button><button className="secondary-button" disabled={index === 0} onClick={() => go(index - 1)}>Previous</button><button className="primary-button" onClick={() => index === questions.length - 1 && q.number === total ? setLeave(true) : go(index + 1)}>{index === questions.length - 1 && q.number === total ? 'Finish' : 'Next'}</button></nav>{palette && <div className="palette-sheet" onClick={() => setPalette(false)}><div className="palette-sheet-inner" onClick={(event) => event.stopPropagation()}><Palette questions={questions} index={index} setIndex={(value) => { setIndex(value); setPalette(false) }} /></div></div>}{menu && <div className="palette-sheet" onClick={() => setMenu(false)}><div className="report-sheet" onClick={(event) => event.stopPropagation()}><h2>Options</h2><button className="secondary-button" onClick={() => { setMenu(false); setReport(true) }}>Report this question</button><label>Text size<select value={size} onChange={(event) => setSize(event.target.value as typeof size)}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><button className="secondary-button" onClick={() => router.push(`/practice/session/${id}`)}>Session summary</button></div></div>}{report && <div className="palette-sheet" onClick={() => setReport(false)}><div className="report-sheet" onClick={(event) => event.stopPropagation()}><Report id={id} refId={q.ref} onSent={() => setReport(false)} /></div></div>}{leave && <div className="palette-sheet" onClick={() => setLeave(false)}><div className="report-sheet" onClick={(event) => event.stopPropagation()}><h2>Leave practice?</h2><p>Your progress is saved.</p><button className="primary-button" onClick={() => router.push(`/practice/session/${id}`)}>Leave session</button><button className="secondary-button" onClick={() => setLeave(false)}>Stay</button></div></div>}{zoom && <div className="image-lightbox" onClick={() => setZoom(null)}><img src={zoom} alt="Enlarged question figure" /></div>}</main>
+
+  return (
+    <main className="player-page player-focus">
+      <header className="player-top cbt-top">
+        <button className="icon-button" aria-label="Leave exam" onClick={() => setLeave(true)}>
+          <ArrowLeft />
+        </button>
+        <div className="cbt-title">
+          <strong>{title}</strong>
+          <small>{currentSubject || meta.subject_names.join(' · ')}</small>
+        </div>
+        {remaining !== null && (
+          <span className={`cbt-timer ${tone}`} role="timer" aria-label="Time remaining">
+            {clockText(remaining)}
+          </span>
+        )}
+        <button className="icon-button" aria-label="Exam menu" onClick={() => setMenu(true)}>
+          <Menu />
+        </button>
+      </header>
+
+      {groups.length > 1 && (
+        <div className="cbt-subjects" role="tablist" aria-label="Subjects">
+          {groups.map((group) => (
+            <button
+              key={`${group.name}-${group.start}`}
+              role="tab"
+              aria-selected={currentSubject === group.name}
+              className={`cbt-subject ${currentSubject === group.name ? 'active' : ''}`}
+              onClick={() => void goTo(group.start)}
+            >
+              {group.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="player-progress">
+        <span style={{ width: `${questionTotal ? Math.min(100, (answered / questionTotal) * 100) : 0}%` }} />
+      </div>
+      <div className="cbt-meter">
+        <span>Question {q.number} of {questionTotal}</span>
+        <span>{answered} answered</span>
+      </div>
+
+      <p className="sr-announce" aria-live="polite">{announce}</p>
+      {queueSize > 0 && (
+        <div className="offline-banner" role="status">
+          {offline ? "You're offline. Your answers will save when you're back." : 'Saving your answers…'}
+        </div>
+      )}
+      {error && <div className="offline-banner" role="status">{error}</div>}
+
+      <div className="player-layout">
+        <section className="question-wrap">
+          <p className="question-label">Question {q.number}</p>
+          <h1
+            ref={heading}
+            tabIndex={-1}
+            className="question-text"
+            style={{ fontSize: size === 'small' ? 16 : size === 'large' ? 21 : 18 }}
+            dangerouslySetInnerHTML={{ __html: q.text }}
+          />
+          {passage && (
+            <article className="passage-card">
+              <small>Passage</small>
+              <div dangerouslySetInnerHTML={{ __html: passage }} />
+            </article>
+          )}
+          {questionImage && (
+            <button className="question-image-wrap" onClick={() => setZoom(questionImage)} aria-label="Zoom question image">
+              <img
+                className="question-image"
+                loading="lazy"
+                src={questionImage}
+                alt={`Diagram for question ${q.number}`}
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none'
+                }}
+              />
+              <ZoomIn size={18} />
+            </button>
+          )}
+
+          <div className="question-actions">
+            <span>{q.your_choice ? 'Tap your answer again to clear it' : 'Choose one answer'}</span>
+            <button
+              className={`flag-button ${q.flagged ? 'active' : ''}`}
+              onClick={toggleFlag}
+              aria-label={q.flagged ? 'Remove flag' : 'Flag for review'}
+              aria-pressed={Boolean(q.flagged)}
+            >
+              <Flag />
+            </button>
+          </div>
+
+          <div className="options" role="radiogroup" aria-label="Answer options">
+            {q.options?.map((option) => (
+              <button
+                key={option.key}
+                role="radio"
+                aria-checked={q.your_choice === option.key}
+                className={`option ${q.your_choice === option.key ? 'selected' : ''}`}
+                onClick={() => choose(option.key)}
+                disabled={locked}
+              >
+                <b>{option.key}</b>
+                <span dangerouslySetInnerHTML={{ __html: option.text }} />
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <aside className="player-rail">
+          <Palette groups={groups} status={status} current={q.number} onJump={jump} />
+        </aside>
+      </div>
+
+      <nav className="player-nav">
+        <button className="secondary-button" onClick={() => setPalette(true)}>
+          <Grid2X2 size={17} />
+          <span>Questions</span>
+          <b>{q.number}/{questionTotal}</b>
+        </button>
+        <button className="secondary-button" disabled={q.number <= 1} onClick={() => void goTo(q.number - 1)}>
+          Previous
+        </button>
+        {q.number >= questionTotal ? (
+          <button className="primary-button" onClick={() => void openSubmit()}>Submit</button>
+        ) : (
+          <button className="primary-button" onClick={() => void goTo(q.number + 1)}>Next</button>
+        )}
+      </nav>
+
+      {toasts.length > 0 && (
+        <div className="cbt-toasts" aria-hidden="true">
+          {toasts.map((toast) => (
+            <p key={toast.id} className="cbt-toast">{toast.text}</p>
+          ))}
+        </div>
+      )}
+
+      {palette && (
+        <Sheet label="Questions" onClose={() => setPalette(false)}>
+          <Palette groups={groups} status={status} current={q.number} onJump={jumpFromSheet} />
+        </Sheet>
+      )}
+
+      {menu && (
+        <Sheet label="Exam menu" onClose={() => setMenu(false)}>
+          <h2>Exam menu</h2>
+          <p className="cbt-sheet-note">
+            {answered} answered · {unanswered} unanswered · {flagged} flagged
+          </p>
+          <label className="cbt-field">
+            Text size
+            <select value={size} onChange={(event) => setSize(event.target.value as typeof size)}>
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </label>
+          <button className="primary-button" onClick={() => void openSubmit()}>
+            Submit exam
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setMenu(false)
+              setLeave(true)
+            }}
+          >
+            Leave exam
+          </button>
+        </Sheet>
+      )}
+
+      {submitOpen && (
+        <Sheet label="Submit exam" onClose={() => (submitting ? undefined : setSubmitOpen(false))}>
+          <h2>Submit exam?</h2>
+          {submitPrep ? (
+            <p className="cbt-sheet-note">
+              <Loader2 className="cbt-spin" size={16} aria-hidden="true" /> Checking your answers…
+            </p>
+          ) : (
+            <>
+              <p className="cbt-sheet-note">
+                Answered {answered} · Unanswered {unanswered} · Flagged {flagged}
+              </p>
+              {chips.length > 0 ? (
+                <>
+                  <p className="cbt-sheet-label">Unanswered or flagged</p>
+                  <div className="cbt-chips">
+                    {chips.map((number) => (
+                      <button
+                        key={number}
+                        className={`cbt-chip ${status.get(number)?.flagged ? 'flagged' : ''}`}
+                        onClick={() => {
+                          setSubmitOpen(false)
+                          void goTo(number)
+                        }}
+                      >
+                        {number}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="cbt-sheet-note">Every question has an answer.</p>
+              )}
+            </>
+          )}
+          {submitError && <p className="cbt-error" role="alert">{submitError}</p>}
+          <div className="cbt-actions">
+            <button className="secondary-button" onClick={() => setSubmitOpen(false)} disabled={submitting}>
+              Back to exam
+            </button>
+            <button
+              className="primary-button"
+              onClick={() => void submitExam(false)}
+              disabled={submitting || submitPrep}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="cbt-spin" size={16} aria-hidden="true" /> Submitting…
+                </>
+              ) : submitError ? (
+                'Retry'
+              ) : (
+                'Submit exam'
+              )}
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {leave && (
+        <Sheet label="Leave exam" onClose={() => setLeave(false)}>
+          <h2>Leave exam?</h2>
+          <p className="cbt-sheet-note">The timer keeps running.</p>
+          <div className="cbt-actions">
+            <button className="secondary-button" onClick={() => setLeave(false)}>Stay</button>
+            <button className="primary-button" onClick={() => router.push('/app')}>Leave</button>
+          </div>
+        </Sheet>
+      )}
+
+      {timeUp && (
+        <div className="cbt-modal" role="dialog" aria-modal="true" aria-label="Time is up">
+          <div className="cbt-modal-card">
+            <h2>Time is up</h2>
+            <p>Submitting your exam…</p>
+            {submitError ? (
+              <>
+                <p className="cbt-error" role="alert">{submitError}</p>
+                <button className="primary-button" onClick={() => void submitExam(false)} disabled={submitting}>
+                  {submitting ? 'Retrying…' : 'Retry submit'}
+                </button>
+              </>
+            ) : (
+              <p className="cbt-modal-wait">
+                <Loader2 className="cbt-spin" size={16} aria-hidden="true" /> Please wait
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {zoom && (
+        <div className="image-lightbox" onClick={() => setZoom(null)}>
+          <img src={zoom} alt="Enlarged question figure" />
+        </div>
+      )}
+    </main>
+  )
 }
-function Palette({ questions, index, setIndex }: { questions: Question[]; index: number; setIndex: (i: number) => void }) { return <div className="palette"><h2>Questions</h2><div className="palette-grid">{questions.map((item, i) => <button key={item.ref} className={`${i === index ? 'current ' : ''}${item.your_choice ? 'answered ' : ''}${item.flagged ? 'flagged' : ''}`} onClick={() => setIndex(i)}>{item.number}{item.flagged && <Flag />}{item.correct_choice && (item.is_correct ? <Check /> : <X />)}</button>)}</div><p className="palette-legend">Answered · Flagged · Current</p></div> }
-function Report({ id, refId, onSent }: { id: string; refId: string; onSent: () => void }) { const [reason, setReason] = useState('typo'); const [note, setNote] = useState(''); return <><h2>Report this question</h2><div className="report-reasons">{[['typo', 'Typo'], ['wrong_answer', 'Wrong answer'], ['missing_option', 'Missing option'], ['bad_image', 'Image problem'], ['other', 'Something else']].map(([value, label]) => <label key={value}><input type="radio" name={`reason-${refId}`} checked={reason === value} onChange={() => setReason(value)} />{label}</label>)}</div><textarea maxLength={300} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note" /><button className="primary-button" onClick={async () => { await fetch(`/api/sessions/${id}/report`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: refId, reason, note }) }); onSent() }}>Send</button></> }
+
+function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="palette-sheet" onClick={onClose}>
+      <div className="report-sheet cbt-sheet" role="dialog" aria-modal="true" aria-label={label} onClick={(event) => event.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+const Palette = memo(function Palette({
+  groups,
+  status,
+  current,
+  onJump,
+}: {
+  groups: SubjectGroup[]
+  status: Map<number, { answered: boolean; flagged: boolean }>
+  current: number
+  onJump: (number: number) => void
+}) {
+  if (!groups.length) return null
+  return (
+    <div className="palette">
+      <h2>Questions</h2>
+      {groups.map((group) => {
+        const numbers = Array.from({ length: group.count }, (_, position) => group.start + position)
+        const done = numbers.filter((number) => status.get(number)?.answered).length
+        return (
+          <section key={`${group.name}-${group.start}`} className="palette-group">
+            <header className="palette-group-head">
+              <strong>{group.name}</strong>
+              <span>{done}/{group.count}</span>
+            </header>
+            <div className="palette-grid">
+              {numbers.map((number) => {
+                const item = status.get(number)
+                return (
+                  <button
+                    key={number}
+                    className={`${number === current ? 'current ' : ''}${item?.answered ? 'answered ' : ''}${item?.flagged ? 'flagged' : ''}`}
+                    onClick={() => onJump(number)}
+                    aria-label={`Question ${number}${item?.answered ? ', answered' : ''}${item?.flagged ? ', flagged' : ''}`}
+                    aria-current={number === current ? 'true' : undefined}
+                  >
+                    {number}
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
+      <p className="palette-legend">Answered · Flagged · Current</p>
+    </div>
+  )
+})
