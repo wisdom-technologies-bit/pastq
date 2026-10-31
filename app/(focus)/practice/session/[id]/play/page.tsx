@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { requireUser } from '@/lib/auth/session'
 import { getSession } from '@/lib/study-sessions'
 import CbtPlayer from '@/components/practice/cbt-player'
@@ -26,6 +26,8 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
   const { user } = await requireUser()
   const row = await getSession((await params).id, user.id)
   if (!row) notFound()
+  // A finished exam goes straight to its result instead of reopening the player.
+  if (row.status === 'submitted' || row.status === 'expired') redirect(`/practice/session/${row.id}/result`)
 
   // Only what the player needs: no Bank session id leaves the server.
   const meta: PlayerMeta = {
