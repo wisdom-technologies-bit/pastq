@@ -1,0 +1,39 @@
+/* Payment callback. One centred card, outside the app shell.
+   Tokens only, so dark mode follows the rest of PastQ. */
+
+.pay-shell { min-height: 100dvh; display: grid; place-items: center; padding: 28px 20px calc(40px + env(safe-area-inset-bottom)); background: var(--background); color: var(--text); }
+.pay-frame { width: min(100%, 520px); display: grid; justify-items: start; gap: 22px; }
+.pay-brand { display: block; }
+.pay-brand img { display: block; width: 104px; height: auto; }
+
+.pay-card { width: 100%; display: grid; padding: 30px 26px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); box-shadow: 0 18px 44px rgba(12, 36, 68, .08); }
+.dark .pay-card { box-shadow: 0 18px 44px rgba(0, 0, 0, .3); }
+
+.pay-mark { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 18px; border-radius: 13px; background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); }
+.pay-mark-quiet { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+.pay-mark-warn { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.pay-spin { animation: pay-rotate .9s linear infinite; }
+@keyframes pay-rotate { to { transform: rotate(360deg); } }
+
+.pay-title { margin: 0; font-family: var(--heading); font-size: clamp(27px, 6vw, 34px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; text-wrap: balance; }
+.pay-lede { margin: 12px 0 0; color: var(--muted); font-size: 16px; line-height: 1.6; }
+
+.pay-facts { display: grid; gap: 0; margin: 24px 0 0; padding: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.pay-facts div { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 14px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.pay-facts div:last-child { border-bottom: 0; }
+.pay-facts dt { flex: 0 0 auto; color: var(--muted); font-size: 14px; }
+.pay-facts dd { margin: 0; max-width: 320px; text-align: right; font-size: 15px; font-weight: 600; line-height: 1.45; }
+
+.pay-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.pay-button { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 18px; border: 0; border-radius: 12px; background: var(--accent); color: #182238; font-weight: 700; }
+.pay-button:hover { filter: brightness(1.04); }
+.pay-button-quiet { border: 1px solid var(--border); background: var(--background); color: var(--text); }
+
+.pay-note { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 20px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.pay-ref { font-family: var(--font-ui), ui-sans-serif, sans-serif; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+
+@media (min-width: 640px) {
+  .pay-frame { gap: 26px; }
+  .pay-brand img { width: 116px; }
+  .pay-card { padding: 38px 36px; }
+}
