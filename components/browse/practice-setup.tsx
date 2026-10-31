@@ -72,7 +72,7 @@ export function UnlockSheet({ signedIn, returnPath, onClose }: { signedIn: boole
       <div className="ps-actions">
         <Link
           className="primary-button"
-          href={signedIn ? '/plans' : `/sign-in?next=${encodeURIComponent(returnPath)}`}
+          href={signedIn ? `/plans?next=${encodeURIComponent(returnPath)}` : `/sign-in?next=${encodeURIComponent(returnPath)}`}
           onClick={onClose}
         >
           {signedIn ? 'Activate premium' : 'Sign in to continue'} <ArrowRight size={16} />
@@ -196,7 +196,7 @@ function SetupSheet({
       {error && (
         <div className="ps-error" role="alert">
           <p>{error.message}</p>
-          {error.code === 'premium_required' && <Link href="/plans" onClick={onClose}>See plans</Link>}
+          {error.code === 'premium_required' && <Link href={`/plans?next=${encodeURIComponent(returnPath)}`} onClick={onClose}>See plans</Link>}
           {error.code === 'too_many_active_sessions' && <Link href="/practice" onClick={onClose}>See your open sessions</Link>}
         </div>
       )}

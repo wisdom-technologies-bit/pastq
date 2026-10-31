@@ -74,6 +74,13 @@ export function shortDate(value: string | Date): string {
   return shortDateFormatter.format(date)
 }
 
+/** "27 Oct 2026" for a timestamp, in Lagos time. Undated values return ''. */
+export function calendarDate(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return stampDateFormatter.format(date)
+}
+
 /** "12 Oct 2026, 18:04" stamp used in tooltips and titles. */
 export function stamp(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value)

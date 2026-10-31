@@ -1,0 +1,96 @@
+/* Plans page. Mobile first, one calm column; two cards side by side from 768px.
+   Every colour comes from the tokens in app/globals.css so dark mode follows. */
+
+.pl-page { min-height: 100dvh; padding: 0 20px calc(64px + env(safe-area-inset-bottom)); background: var(--background); color: var(--text); }
+.pl-inner { width: 100%; max-width: 1000px; margin: 0 auto; }
+
+.pl-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0 6px; }
+.pl-brand img { display: block; width: 104px; height: auto; }
+.pl-topbar-link { color: var(--muted); font-size: 14px; font-weight: 600; }
+.pl-topbar-link:hover { color: var(--text); }
+
+.pl-hero { padding: 30px 0 26px; }
+.pl-kicker { margin: 0 0 12px; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.pl-hero h1 { margin: 0; font-family: var(--heading); font-size: clamp(34px, 7.5vw, 56px); font-weight: 700; line-height: 1.04; letter-spacing: -.02em; text-wrap: balance; }
+.pl-sub { max-width: 520px; margin: 16px 0 0; color: var(--muted); font-size: 16px; line-height: 1.6; }
+.pl-testmode { display: inline-flex; align-items: center; margin-top: 18px; padding: 5px 10px; border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border)); border-radius: 999px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+.pl-prices { display: grid; gap: 16px; }
+
+.pl-card { position: relative; display: flex; flex-direction: column; padding: 24px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
+.pl-card-featured { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); box-shadow: 0 18px 44px rgba(12, 36, 68, .08); }
+.dark .pl-card-featured { box-shadow: 0 18px 44px rgba(0, 0, 0, .3); }
+.pl-card h2 { margin: 0; font-family: var(--heading); font-size: 21px; font-weight: 600; letter-spacing: -.01em; }
+.pl-price { display: flex; align-items: baseline; gap: 8px; margin: 10px 0 0; }
+.pl-price span { font-family: var(--heading); font-size: clamp(34px, 8vw, 44px); font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.pl-price small { color: var(--muted); font-size: 14px; font-weight: 600; }
+.pl-price-note { margin: 6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.pl-tag { position: absolute; top: 20px; right: 20px; padding: 5px 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); font-size: 12px; font-weight: 800; }
+
+.pl-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 20px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--background); }
+.pl-seg button { min-height: 44px; padding: 4px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; line-height: 1.25; transition: background .18s ease, color .18s ease; }
+.pl-seg button[aria-checked='true'] { background: var(--primary); color: var(--background); }
+.pl-note { min-height: 40px; margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+
+.pl-lifetime-list { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.pl-lifetime-list li { display: flex; align-items: flex-start; gap: 10px; }
+.pl-lifetime-list li::before { content: ''; flex: 0 0 6px; width: 6px; height: 6px; margin-top: 7px; border-radius: 50%; background: var(--accent); }
+
+.pl-card-actions { margin-top: auto; padding-top: 20px; }
+.pl-cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 50px; padding: 0 18px; border: 0; border-radius: 12px; background: var(--primary); color: var(--background); font-weight: 700; text-align: center; transition: transform .18s ease, filter .18s ease; }
+.pl-cta:hover { filter: brightness(1.03); }
+.pl-cta:active { transform: scale(.985); }
+.pl-cta:disabled { opacity: .62; cursor: progress; }
+.pl-card-featured .pl-cta { background: var(--accent); color: #182238; }
+.pl-spin { animation: pl-rotate .9s linear infinite; }
+@keyframes pl-rotate { to { transform: rotate(360deg); } }
+
+.pl-error { margin: 16px 0 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--danger) 38%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--danger) 7%, var(--surface)); font-size: 14px; line-height: 1.5; }
+
+.pl-current { padding: 26px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
+.pl-current h2 { margin: 0; font-family: var(--heading); font-size: clamp(22px, 5vw, 26px); font-weight: 600; letter-spacing: -.01em; }
+.pl-current-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.pl-chip { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--text); font-size: 12px; font-weight: 700; }
+.pl-current-date { color: var(--muted); font-variant-numeric: tabular-nums; }
+.pl-current-note { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.pl-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; margin-top: 20px; padding: 0 16px; border: 1px solid var(--border); border-radius: 11px; background: var(--background); color: var(--text); font-size: 14px; font-weight: 700; }
+.pl-secondary:disabled { opacity: .62; cursor: progress; }
+
+.pl-switch { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; padding: 20px; border: 1px dashed var(--border); border-radius: 16px; }
+.pl-switch strong { font-size: 15px; }
+.pl-switch p { margin: 6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.pl-switch .pl-secondary { margin-top: 0; }
+
+.pl-unlocks { margin-top: 26px; padding: 24px; border: 1px solid var(--border); border-radius: 20px; background: color-mix(in srgb, var(--surface) 72%, var(--background)); }
+.pl-unlocks h2 { margin: 0 0 16px; font-family: var(--heading); font-size: 18px; font-weight: 600; }
+.pl-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.pl-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.45; }
+.pl-list svg { flex: 0 0 auto; margin-top: 2px; color: var(--success); }
+.pl-free { display: flex; align-items: flex-start; gap: 9px; margin: 20px 0 0; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 14px; line-height: 1.5; }
+.pl-free svg { flex: 0 0 auto; margin-top: 2px; }
+
+.pl-trust { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 22px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+.pl-trust svg { flex: 0 0 auto; }
+
+.pl-faq { margin-top: 34px; }
+.pl-faq h2 { margin: 0 0 10px; font-family: var(--heading); font-size: 20px; font-weight: 600; }
+.pl-faq details { border-bottom: 1px solid var(--border); }
+.pl-faq details:first-of-type { border-top: 1px solid var(--border); }
+.pl-faq summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 15px 0; cursor: pointer; font-size: 15px; font-weight: 700; list-style: none; }
+.pl-faq summary::-webkit-details-marker { display: none; }
+.pl-faq summary::after { content: '+'; color: var(--muted); font-size: 20px; font-weight: 400; line-height: 1; }
+.pl-faq details[open] summary::after { content: '\2212'; }
+.pl-faq p { max-width: 640px; margin: 0 0 18px; color: var(--muted); font-size: 15px; line-height: 1.6; }
+
+@media (min-width: 768px) {
+  .pl-page { padding: 0 32px calc(88px + env(safe-area-inset-bottom)); }
+  .pl-topbar { padding: 26px 0 10px; }
+  .pl-brand img { width: 118px; }
+  .pl-hero { padding: 48px 0 34px; }
+  .pl-prices { grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
+  .pl-card { padding: 28px; }
+  .pl-current { padding: 30px; }
+  .pl-switch { flex-direction: row; align-items: center; justify-content: space-between; padding: 22px 24px; }
+  .pl-unlocks { margin-top: 30px; padding: 28px 30px; }
+  .pl-list { grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+}

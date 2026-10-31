@@ -3,4 +3,17 @@ import { BannerSlot } from '@/components/banners/BannerSlot'
 import { YearTile } from '@/components/browse/cards'
 import { getExamProfile, getYears } from '@/lib/bank/catalog'
 import { getCurrentUser } from '@/lib/auth/session'
-export default async function CbtExamPage({params}:{params:Promise<{exam:string}>}){const{exam}=await params;const current=await getCurrentUser();try{const[profile,years]=await Promise.all([getExamProfile(exam,current?.user),getYears(exam,current?.user)]);const eligible=years.filter((year)=>year.cbt?.eligible);return <><BannerSlot slot="cbt_top"/><nav className="breadcrumbs" aria-label="Breadcrumb"><Link href="/cbt">CBT</Link><span>/</span><span>{profile.display_name}</span></nav><header className="browse-header"><div><h1>{profile.display_name}</h1><p className="lede">Pick a year with enough questions for a complete mock.</p></div></header>{eligible.length?<div className="year-grid">{eligible.map((year)=><YearTile key={year.year} exam={exam} year={year} signedIn={Boolean(current)} mode="cbt"/>)}</div>:<div className="empty-state"><h2>No CBT years yet</h2><p>This exam does not have a complete CBT plan available yet.</p></div>}</>}catch{return <section className="empty-state" role="alert"><h1>We couldn&apos;t load this right now.</h1><p>The CBT years are not available yet.</p><Link href={`/cbt/${exam}`} className="primary-button">Retry</Link></section>}}
+import { getTier } from '@/lib/entitlements'
+
+export default async function CbtExamPage({ params }: { params: Promise<{ exam: string }> }) {
+  const { exam } = await params
+  const current = await getCurrentUser()
+  const tier = getTier(current?.user)
+  try {
+    const [profile, years] = await Promise.all([getExamProfile(exam, current?.user), getYears(exam, current?.user)])
+    const eligible = years.filter((year) => year.cbt?.eligible)
+    return <><BannerSlot slot="cbt_top"/><nav className="breadcrumbs" aria-label="Breadcrumb"><Link href="/cbt">CBT</Link><span>/</span><span>{profile.display_name}</span></nav><header className="browse-header"><div><h1>{profile.display_name}</h1><p className="lede">Pick a year with enough questions for a complete mock.</p></div></header>{eligible.length ? <div className="year-grid">{eligible.map((year) => <YearTile key={year.year} exam={exam} year={year} signedIn={Boolean(current)} mode="cbt" tier={tier} />)}</div> : <div className="empty-state"><h2>No CBT years yet</h2><p>This exam does not have a complete CBT plan available yet.</p></div>}</>
+  } catch {
+    return <section className="empty-state" role="alert"><h1>We couldn&apos;t load this right now.</h1><p>The CBT years are not available yet.</p><Link href={`/cbt/${exam}`} className="primary-button">Retry</Link></section>
+  }
+}

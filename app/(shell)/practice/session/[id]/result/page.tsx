@@ -29,7 +29,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   let result = normalise(row.result_summary)
   let failed = false
   try {
-    const remote = await bankFetch<Record<string, unknown>>(`/sessions/${row.bank_session_id}/result`, {}, { userId: user.id, tier: 'free' })
+    const remote = await bankFetch<Record<string, unknown>>(`/sessions/${row.bank_session_id}/result`, {}, { userId: user.id, tier: getTier(user) })
     const fresh = normalise(remote?.data ?? remote)
     if (fresh && fresh.total > 0) result = fresh
     if (!row.result_summary && fresh) {

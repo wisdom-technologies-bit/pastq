@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth/session'
+import { getTier } from '@/lib/entitlements'
 import { getSession } from '@/lib/study-sessions'
 import { bankFetch } from '@/lib/bank/client'
 
@@ -23,7 +24,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   let remote: Record_ = {}
   let reachable = true
   try {
-    const body = await bankFetch<Record_>(`/sessions/${row.bank_session_id}`, {}, { userId: user.id, tier: 'free' })
+    const body = await bankFetch<Record_>(`/sessions/${row.bank_session_id}`, {}, { userId: user.id, tier: getTier(user) })
     remote = (body?.data ?? body ?? {}) as Record_
   } catch {
     reachable = false
