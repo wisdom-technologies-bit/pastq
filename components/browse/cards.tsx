@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Building2, CalendarDays, ChevronRight, GraduationCap, Landmark, LockKeyhole, School } from 'lucide-react'
-import type { Exam, ExamProfile, ExamSubject, ExamYear, CbtPlan } from '@/lib/bank/schemas'
-import { UnlockTrigger, OpeningSoonButton, cbtSetupHref } from './browse-client'
+import type { Exam, ExamProfile, ExamSubject, ExamYear } from '@/lib/bank/schemas'
+import { UnlockTrigger } from './browse-client'
 
 export function ExamCard({ exam, profile, years, mode = 'practice' }: { exam: Exam; profile?: ExamProfile; years?: ExamYear[]; mode?: 'practice' | 'cbt' }) {
   const summary = exam.profile.shared_timer ? `${exam.profile.subjects_required} subjects · ${exam.profile.total_minutes ?? exam.profile.default_minutes} minutes` : `${exam.profile.default_question_count} questions · ${exam.profile.default_minutes} minutes per subject`
@@ -20,6 +20,4 @@ export function YearTile({ exam, year, signedIn, mode }: { exam: string; year: E
 
 export { SubjectSetupRow as SubjectRow } from './practice-setup'
 
-export function MissingCompulsory({ plan, exam, year }: { plan: CbtPlan; exam: string; year: number }) { if (!plan.missing) return null; return <div className="missing-notice"><strong>{plan.compulsorySubject === 'english-language' ? 'English' : plan.compulsorySubject} is not available for this year yet</strong><p>Choose how you want to build this CBT.</p><label><input type="radio" name="missing-compulsory" defaultChecked /> Continue without it</label>{plan.borrow?.available && <label><input type="radio" name="missing-compulsory" /> Borrow it from {plan.borrow.donorYear}</label>}</div> }
 
-export function StartCbt({ exam, year, signedIn }: { exam: string; year: number; signedIn: boolean }) { return <OpeningSoonButton href={cbtSetupHref(exam, year)} label="Start CBT" signedIn={signedIn} /> }
